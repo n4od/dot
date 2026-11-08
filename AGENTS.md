@@ -7,6 +7,9 @@ Windows. One transparent, frameless, always-on-top window per pet.
 
 - **The owner drives.** Do not scaffold, refactor, install, build or launch the app
   unless explicitly asked. Propose first; wait for a go-ahead.
+- **Never write history without an explicit instruction.** No `git commit`, `amend`,
+  `reset`, `rebase` or `tag` unless the owner says to commit. "go" for a plan is not
+  authorisation to commit it. Do the work, verify it, report, stop, and wait.
 - Shell is PowerShell, and `pnpm` resolves to `pnpm.ps1` while execution policy is
   Restricted — a bare `pnpm …` fails with a script-disabled error. Always use
   `cmd /c "pnpm …"`.
