@@ -7,6 +7,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-11-09
+
 ### Added
 
 - **The pet is configurable, and remembers it.** Tray → Settings opens a picker for
