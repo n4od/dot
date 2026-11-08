@@ -55,6 +55,11 @@ export const EXPRESSION_NAMES: Record<string, string> = {
   somnolent: 'Sleepy'
 }
 
+export const STYLE_NAMES: Record<string, string> = {
+  plat: 'Flat',
+  argile: 'Clay'
+}
+
 export function displayName(names: Record<string, string>, id: string): string {
   return names[id] ?? id
 }

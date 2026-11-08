@@ -6,7 +6,8 @@ import { EXPRESSIONS, EXPRESSION_BY_ID, DEFAULT_EXPRESSION } from '../bot/expres
 import { RAYON } from '../bot/repere'
 import { COLORS, COLOR_BY_ID, SHAPES, SHAPE_BY_ID, DEFAULT_SHAPE, DEFAULT_COLOR } from '../bot/skins'
 import { eyeFillFor } from '../contrast'
-import { COLOR_NAMES, EXPRESSION_NAMES, SHAPE_NAMES, displayName } from '../display'
+import { COLOR_NAMES, EXPRESSION_NAMES, SHAPE_NAMES, STYLE_NAMES, displayName } from '../display'
+import { STYLE_IDS, DEFAULT_STYLE, isStyleId, type StyleId } from '../pet/materials'
 import PetFigure from '../pet/PetFigure.vue'
 
 /*
@@ -22,11 +23,17 @@ interface Config {
   shape: string
   color: string
   expression: string
+  style: string
 }
 
 const R = RAYON
 
-const config = ref<Config>({ shape: DEFAULT_SHAPE, color: DEFAULT_COLOR, expression: DEFAULT_EXPRESSION })
+const config = ref<Config>({
+  shape: DEFAULT_SHAPE,
+  color: DEFAULT_COLOR,
+  expression: DEFAULT_EXPRESSION,
+  style: DEFAULT_STYLE
+})
 const error = ref('')
 const saved = ref(false)
 
@@ -36,6 +43,11 @@ const expressionName = computed(() => displayName(EXPRESSION_NAMES, config.value
 
 const ink = computed(() => COLOR_BY_ID.get(config.value.color)?.hex ?? '#0a0a0c')
 const eyeFill = computed(() => eyeFillFor(ink.value))
+
+/** The stored id is a plain string; anything unknown paints as flat. */
+const styleId = computed<StyleId>(() =>
+  isStyleId(config.value.style) ? config.value.style : DEFAULT_STYLE
+)
 
 /* ----------------------------------------------------------------- clock */
 
@@ -226,6 +238,19 @@ function straightAhead(frame: BotFrame): BotFrame {
     <header>
       <h1>Dot</h1>
       <p class="tagline">Dress your pet. It saves as you go.</p>
+      <div class="styles" role="group" aria-label="Style">
+        <button
+          v-for="id in STYLE_IDS"
+          :key="id"
+          type="button"
+          class="stylebtn"
+          :class="{ on: id === config.style }"
+          :aria-pressed="id === config.style"
+          @click="pick('style', id)"
+        >
+          {{ displayName(STYLE_NAMES, id) }}
+        </button>
+      </div>
     </header>
 
     <div class="bench">
@@ -236,6 +261,7 @@ function straightAhead(frame: BotFrame): BotFrame {
           :frame="frame"
           :ink="ink"
           :eye-fill="eyeFill"
+          :style-id="styleId"
         />
         <p class="plate">{{ shapeName }} · {{ colorName }} · {{ expressionName }}</p>
       </section>
@@ -313,6 +339,7 @@ function straightAhead(frame: BotFrame): BotFrame {
                 :frame="expression.frame"
                 :ink="ink"
                 :eye-fill="eyeFill"
+                :style-id="styleId"
                 :zoom="110"
                 bare
                 aria-hidden="true"
@@ -374,6 +401,37 @@ h1 {
   margin: 0;
   font-size: 12.5px;
   color: var(--muted);
+}
+
+/* A mode switch, not a value: two words in a pill, out of the panel's way. */
+.styles {
+  display: flex;
+  align-self: center;
+  margin-left: auto;
+  padding: 2px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.stylebtn {
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.01em;
+  color: var(--muted);
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.stylebtn:hover {
+  color: var(--ink);
+}
+
+.stylebtn.on {
+  background: var(--ink);
+  color: #f7f3ec;
 }
 
 /* ------------------------------------------------------------------ bench */

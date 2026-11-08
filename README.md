@@ -75,11 +75,11 @@ French, because those are what the engine, its tests and the config file use.
 The choice lives in one small JSON file:
 
 ```json
-{ "shape": "triangle", "color": "violet", "expression": "somnolent" }
+{ "shape": "triangle", "color": "violet", "expression": "somnolent", "style": "argile" }
 ```
 
 at `%APPDATA%\dev.dotscode.dot\config.json`. Delete it to go back to defaults
-(`cercle` / `encre` / `neutre`).
+(`cercle` / `encre` / `neutre` / `plat`).
 
 **Rust owns that file, not the frontend.** `create_pet` runs in `setup()`, before
 any webview exists to be asked what to draw, so the config has to be readable
@@ -88,6 +88,51 @@ change re-opens it with the new ones — which is why a colour applies without
 restarting anything. A missing, unreadable or half-written file is not an error:
 unknown ids fall back to the catalogue defaults, so a hand-edited file degrades
 instead of breaking the pet.
+
+## Styles, and how the pet is painted
+
+`style` is the fourth axis, chosen with a pill in the settings header:
+
+| id | label | what it does |
+|---|---|---|
+| `plat` | Flat | one flat fill — the default, and what the upstream demo does |
+| `argile` | Clay | a lit surface: a top-left highlight, a shaded lower edge, a specular, and eyes that read as pressed in |
+
+Both spend the *same* geometry. The style changes no point the engine emits, only
+how the frame is painted. `plat` is the default precisely so that a `config.json`
+written before styles existed still opens on the pet it always was — the field is
+`#[serde(default)]` on the Rust side, and an unknown id resolves back to `plat`
+in `src/pet/materials.ts`.
+
+Clay derives everything from the one ink hex, so it works for all twelve colours
+including the near-black and near-white ends, and it is built from **fills and
+gradients only** — no SVG filters, which would cost a blur per element on every
+animation frame.
+
+### Adding a style
+
+The definitions live in `src/pet/materials.ts`; the drawing lives in
+`src/pet/PetFigure.vue`. Adding one is a recipe, not an excavation:
+
+1. **`src/pet/materials.ts`** — add the id to `StyleId` and `STYLE_IDS`, and add a
+   paint function (`glassMaterial(ink)`) that returns the colours the drawing
+   needs, derived from the ink.
+2. **`src/display.ts`** — add the English label to `STYLE_NAMES`.
+3. **`src/pet/PetFigure.vue`** — add a `computed` flag and the draw branch. This is
+   the only file that grows per style; everything else is shared.
+4. **Rust — nothing.** `Config` accepts any string, `pet_query` passes it through,
+   the settings pill is generated from `STYLE_IDS`, and the pet validates against
+   `isStyleId`. Rust only changes if the *default* style changes.
+
+The ids are storage keys: **add, never rename** — `config.json` on disk and the
+upstream engine tests both depend on the ones already written.
+
+Whatever goes in must keep four promises: fills only (no per-frame filters), no
+opaque backdrop (the window is transparent), `.hit` stays on the body path and the
+eye group (or the pet stops accepting clicks), and the eyes stay filled and take
+their contrast from `src/contrast.ts`. It also has to read at 42 px — the
+expression thumbnails draw the same style through `bare` + `zoom` — and on the
+irregular silhouettes, not just the circle.
 
 ## How the desktop-specific parts work
 

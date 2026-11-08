@@ -32,7 +32,7 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 - `pnpm build` typechecks the test files too (tsconfig includes `src/**/*.ts`), so a
   type error in a test fails the build, not just the tests.
 - Browser iteration: `http://localhost:1421/?window=pet&state=orbit`. `?shape=`,
-  `?color=` and `?expression=` are also read from the URL.
+  `?color=`, `?expression=` and `?style=` are also read from the URL.
 
 ## Build traps
 
@@ -56,10 +56,12 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   `set_config`. They are not a plugin, so `capabilities/default.json` only needs
   `core:default`.
 - **Rust owns the pet's appearance** (`config.json` in the app config dir), because
-  `create_pet` runs in `setup()` before any webview exists. The values travel to the
-  pet as query parameters, and `set_config` re-opens the window at the same place to
-  apply them. Don't move that state into the frontend — Rust would have nothing to
-  draw with at startup.
+  `create_pet` runs in `setup()` before any webview exists. The values — shape,
+  colour, expression and style — travel to the pet as query parameters, and
+  `set_config` re-opens the window at the same place to apply them. Don't move that
+  state into the frontend — Rust would have nothing to draw with at startup.
+  `Config` is `#[serde(default)]`, so a file written before a field existed still
+  loads; add new fields with a default, never make one required.
 - Window labels are hardcoded (`pet-1`, `settings`); "Add a pet" currently just
   re-focuses `pet-1`.
 - `src/bot/` is a frozen copy of `jeremy-prt/bloub` @ `b4bb3c1` (MIT), tests
@@ -74,13 +76,37 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   because it is the same drawing. Its `interactive` prop is what puts `.hit` on the
   body and the eyes; without it the figure is inert. `zoom` and `bare` exist for the
   picker's expression thumbnails: they crop the viewBox to the body and drop the
-  orbits, particles and badge.
+  orbits, particles and badge. Its `styleId` prop selects the paint — see **Styles**
+  below.
 - `src/display.ts` maps the engine's French ids to English labels for the interface.
   **The ids are storage keys** (`config.json`, the upstream tests); rename a label,
   never an id.
 - The settings window is a fixed-height document with one scrolling region
   (`.panel`): the page itself must not scroll, or the stage scrolls away from the
   controls.
+
+## Styles (how the pet is painted)
+
+- **A style paints geometry; it never moves it.** The engine emits one frame; the
+  style decides the fills. `src/pet/materials.ts` owns the definitions and the
+  checklist; `src/pet/PetFigure.vue` owns the drawing (a `clay` flag plus the
+  template branch). Definitions there, pixels there — keep the split, so a new
+  style does not need a new component.
+- Two styles today: `plat` (default, one flat fill) and `argile` (lit). The id is a
+  **storage key** in `config.json`: add styles, never rename or reorder ids.
+- **To add one, follow the checklist at the top of `src/pet/materials.ts`.** In
+  short: id + paint function in `materials.ts`, label in `src/display.ts`, branch in
+  `PetFigure.vue`, and **nothing in Rust**. The settings pill is generated from
+  `STYLE_IDS` and the pet validates with `isStyleId`, so neither needs editing.
+  Rust changes only if the *default* style does.
+- **`plat` must stay the default, and an unknown id must stay flat.** Config files
+  written before the field existed have no `style` key; `#[serde(default)]` in Rust
+  and `isStyleId` in the frontend are what keep them opening on the pet they were.
+- **A style is bounded by the desktop window**: fills and gradients only (a
+  per-frame SVG filter multiplies per element), no opaque backdrop, `.hit` on the
+  body path and the eye group, eyes filled with `src/contrast.ts`'s colour, derived
+  from the ink hex so all twelve colours work, and legible at 42 px (`bare` + `zoom`
+  thumbnails) as well as 180 px, on irregular silhouettes too.
 
 ## Rendering constraints that look like style choices
 

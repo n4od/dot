@@ -10,7 +10,7 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - **The pet is configurable, and remembers it.** Tray → Settings opens a picker for
-  shape, colour and expression, and every click applies to the running pet
+  shape, colour, expression and style, and every click applies to the running pet
   immediately. The choice is a small `config.json` in the app config directory.
 
   Rust owns that file rather than the frontend: the pet window is created in
@@ -37,6 +37,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   about 15 seconds. `pnpm build` typechecks them as well, so a type error in a test
   fails the build rather than only the tests. Vitest runs with `globals: false`, so
   each test imports `describe`, `expect` and `it` from `vitest` explicitly.
+
+- **A `style` axis: Flat and Clay.** `style` joins shape, colour and expression in
+  `config.json`, chosen with a pill in the settings header. `plat` is the flat fill
+  and the default, so a file written before the field existed still opens on the pet
+  it always was; `argile` paints the same geometry as a lit surface — a top-left
+  highlight, a shaded lower edge, a specular, and eyes that read as pressed in.
+  Everything is derived from the one ink hex, so all twelve colours work, and it is
+  built from fills and gradients rather than filters, so it costs nothing per frame.
+
+  The definitions live in `src/pet/materials.ts` and the drawing in
+  `src/pet/PetFigure.vue`. The module header documents the four-step recipe for a
+  third style; adding one needs no Rust change, because the settings pill is
+  generated from the style ids and the pet validates against them.
 
 ### Changed
 

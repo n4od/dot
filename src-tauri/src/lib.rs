@@ -17,7 +17,7 @@ const CONFIG_FILE: &str = "config.json";
  * JSON in the app config directory, and its ids are the ones the frontend
  * catalogues use (`src/bot/skins.ts`, `src/bot/expressions.ts`).
  *
- * Those three defaults are duplicated from the catalogues on purpose. The pet
+ * Those four defaults are duplicated from the catalogues on purpose. The pet
  * resolves an id it does not know to a default, so a hand-edited or stale file
  * degrades to a sensible shape instead of refusing to start.
  */
@@ -27,6 +27,8 @@ struct Config {
     shape: String,
     color: String,
     expression: String,
+    /// `plat` (the flat fill) or `argile` (lit). Unknown values read as `plat`.
+    style: String,
 }
 
 impl Default for Config {
@@ -35,6 +37,7 @@ impl Default for Config {
             shape: "cercle".into(),
             color: "encre".into(),
             expression: "neutre".into(),
+            style: "plat".into(),
         }
     }
 }
@@ -78,10 +81,11 @@ fn param(value: &str) -> String {
 
 fn pet_query(config: &Config) -> String {
     format!(
-        "?window=pet&shape={}&color={}&expression={}",
+        "?window=pet&shape={}&color={}&expression={}&style={}",
         param(&config.shape),
         param(&config.color),
-        param(&config.expression)
+        param(&config.expression),
+        param(&config.style)
     )
 }
 

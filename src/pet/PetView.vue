@@ -9,6 +9,7 @@ import { COLOR_BY_ID, DEFAULT_COLOR, DEFAULT_SHAPE, SHAPE_BY_ID } from '../bot/s
 import { RAYON } from '../bot/repere'
 import { clamp } from '../bot/math'
 import { eyeFillFor } from '../contrast'
+import { DEFAULT_STYLE, isStyleId, type StyleId } from './materials'
 import PetFigure from './PetFigure.vue'
 
 /*
@@ -21,6 +22,8 @@ const params = new URLSearchParams(window.location.search)
 const shapeRadii = SHAPE_BY_ID.get(params.get('shape') ?? DEFAULT_SHAPE)?.radii ?? null
 const expression = EXPRESSION_BY_ID.get(params.get('expression') ?? DEFAULT_EXPRESSION) ?? null
 const inkColor = COLOR_BY_ID.get(params.get('color') ?? DEFAULT_COLOR)?.hex ?? '#0a0a0c'
+const styleParam = params.get('style')
+const styleId: StyleId = isStyleId(styleParam) ? styleParam : DEFAULT_STYLE
 
 const ink = computed(() => inkColor)
 
@@ -300,6 +303,7 @@ function onFigurePointerDown(event: PointerEvent) {
     :frame="frame"
     :ink="ink"
     :eye-fill="eyeFill"
+    :style-id="styleId"
     interactive
     class="pet"
     @pointerdown="onFigurePointerDown"
