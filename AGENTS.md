@@ -46,10 +46,17 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 ## Wiring
 
 - `src/main.ts` chooses the view from `?window=` (default `pet`). A new window type
-  needs a branch there **and** a builder in `src-tauri/src/lib.rs`.
-- `src-tauri/src/lib.rs` owns window creation, the tray, and four plain commands:
-  `pet_geometry`, `set_click_through`, `start_drag`, `quit_app`. They are not a
-  plugin, so `capabilities/default.json` only needs `core:default`.
+  needs a branch there **and** a builder in `src-tauri/src/lib.rs`, **and** a block
+  in `src/styles.css`.
+- `src-tauri/src/lib.rs` owns window creation, the tray, and six plain commands:
+  `pet_geometry`, `set_click_through`, `start_drag`, `quit_app`, `get_config`,
+  `set_config`. They are not a plugin, so `capabilities/default.json` only needs
+  `core:default`.
+- **Rust owns the pet's appearance** (`config.json` in the app config dir), because
+  `create_pet` runs in `setup()` before any webview exists. The values travel to the
+  pet as query parameters, and `set_config` re-opens the window at the same place to
+  apply them. Don't move that state into the frontend — Rust would have nothing to
+  draw with at startup.
 - Window labels are hardcoded (`pet-1`, `settings`); "Add a pet" currently just
   re-focuses `pet-1`.
 - `src/bot/` is a frozen copy of `jeremy-prt/bloub` @ `b4bb3c1` (MIT), tests
@@ -62,12 +69,19 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 
 ## Rendering constraints that look like style choices
 
-- Transparency depends on `html, body, #app { background: transparent }` in
-  `src/styles.css`. Any opaque background turns the window into a white square.
+- **`src/styles.css` is shared by both windows and gates its rules on
+  `html[data-window=...]`**, set by `main.ts` from `?window=`. The pet block makes
+  the document transparent and non-interactive; the settings block makes it an
+  ordinary scrolling document. A rule written unscoped leaks into the other window —
+  that is how `#app svg { width: 100% }` silently overrode the picker's own sizes
+  and how `overflow: hidden` made the picker unscrollable.
+- Transparency depends on the pet block keeping `html`, `body` and `#app`
+  transparent. Any opaque background there turns the window into a white square.
 - Eyes are **filled and clipped** to the body path, not punched out as mask holes,
   and there is no paper backing disc. Both deliberately differ from the upstream
   demo: on a transparent window a hole shows the wallpaper and the orbit rings
-  drawn behind the body.
+  drawn behind the body. `src/contrast.ts` holds the eye fill, shared with the
+  settings preview so the picker cannot misrepresent the pet.
 - `class="hit"` is load-bearing. The click-through test is
   `elementFromPoint(…).closest('.hit')`; renaming or dropping those classes silently
   makes the pet unclickable.

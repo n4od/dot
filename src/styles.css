@@ -1,33 +1,47 @@
 /*
- * The pet window is a transparent, frameless WebView. Everything that is not
- * painted by the SVG must stay fully transparent, including the <html> and
- * <body> backgrounds — a white default here is what turns "transparent window"
- * into "white square" on Windows.
+ * Shared reset. Everything below is scoped per window kind, because the two
+ * windows want opposite defaults: the pet must be fully transparent and
+ * non-interactive except where it is painted, and the settings window is an
+ * ordinary scrolling document.
+ *
+ * `main.ts` stamps `data-window` on <html> from the `?window=` parameter.
  */
 html,
 body,
 #app {
   margin: 0;
   padding: 0;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* ---------------------------------------------------------------- pet window
+ *
+ * The pet window is a transparent, frameless WebView. Everything that is not
+ * painted by the SVG must stay fully transparent, including the <html> and
+ * <body> backgrounds — a white default here is what turns "transparent window"
+ * into "white square" on Windows.
+ */
+html[data-window='pet'],
+html[data-window='pet'] body,
+html[data-window='pet'] #app {
   width: 100%;
   height: 100%;
   background: transparent;
   overflow: hidden;
-  -webkit-user-select: none;
-  user-select: none;
   cursor: default;
 }
 
 /* No pointer events by default: hit testing is done per painted shape so that
  * the transparent corners of the window let clicks through to the desktop. */
-html,
-body,
-#app,
-#app svg {
+html[data-window='pet'],
+html[data-window='pet'] body,
+html[data-window='pet'] #app,
+html[data-window='pet'] #app svg {
   pointer-events: none;
 }
 
-#app svg {
+html[data-window='pet'] #app svg {
   display: block;
   width: 100%;
   height: 100%;
@@ -37,11 +51,23 @@ body,
   pointer-events: auto;
 }
 
+/* ----------------------------------------------------------- settings window
+ *
+ * The picker is taller than the window, so this one scrolls. `height: auto` on
+ * body and #app lets the content set the height and leaves the scrolling to
+ * <html>, which avoids two nested scrollbars.
+ */
 html[data-window='settings'],
 html[data-window='settings'] body,
 html[data-window='settings'] #app {
+  height: auto;
   background: #fdfdfd;
   pointer-events: auto;
   color: #1b1b22;
   font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+html[data-window='settings'] {
+  height: 100%;
+  overflow-y: auto;
 }

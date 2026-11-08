@@ -9,6 +9,7 @@ import { COLOR_BY_ID, DEFAULT_COLOR, DEFAULT_SHAPE, SHAPE_BY_ID } from '../bot/s
 import { DEMI_VIEWBOX, RAYON } from '../bot/repere'
 import { NOTIF_BLUE } from '../bot/decor'
 import { clamp } from '../bot/math'
+import { eyeFillFor } from '../contrast'
 
 /*
  * A desktop pet is a client of the same clock-free engine the web demo uses:
@@ -28,15 +29,9 @@ const ink = computed(() => inkColor)
  * the page colour is the reference background. A transparent desktop window has
  * no such colour: a hole would show the wallpaper (and the orbit rings drawn
  * behind the body), so the eyes are filled and clipped to the body instead.
+ * `eyeFillFor` is shared with the settings preview so the two cannot disagree.
  */
-function luminance(hex: string): number {
-  const n = parseInt(hex.replace('#', ''), 16)
-  const r = ((n >> 16) & 0xff) / 255
-  const g = ((n >> 8) & 0xff) / 255
-  const b = (n & 0xff) / 255
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b
-}
-const eyeFill = luminance(inkColor) > 0.55 ? '#111116' : '#fdfdfd'
+const eyeFill = eyeFillFor(inkColor)
 
 const R = RAYON
 const VB = DEMI_VIEWBOX

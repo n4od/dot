@@ -1,4 +1,5 @@
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::time::Duration;
 use tauri::{
     menu::{Menu, MenuItem},
@@ -8,6 +9,81 @@ use tauri::{
 
 const PET_LABEL: &str = "pet-1";
 const PET_SIZE: f64 = 180.0;
+const CONFIG_FILE: &str = "config.json";
+
+/*
+ * Rust owns what the pet looks like, not the frontend: `create_pet` runs in
+ * `setup()`, before any webview exists that could be asked. The file is plain
+ * JSON in the app config directory, and its ids are the ones the frontend
+ * catalogues use (`src/bot/skins.ts`, `src/bot/expressions.ts`).
+ *
+ * Those three defaults are duplicated from the catalogues on purpose. The pet
+ * resolves an id it does not know to a default, so a hand-edited or stale file
+ * degrades to a sensible shape instead of refusing to start.
+ */
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(default)]
+struct Config {
+    shape: String,
+    color: String,
+    expression: String,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            shape: "cercle".into(),
+            color: "encre".into(),
+            expression: "neutre".into(),
+        }
+    }
+}
+
+fn config_path(app: &AppHandle) -> Result<PathBuf, String> {
+    app.path()
+        .app_config_dir()
+        .map(|dir| dir.join(CONFIG_FILE))
+        .map_err(|e| e.to_string())
+}
+
+/// A missing or unreadable file is not an error: the pet still has to look like
+/// something, so the fallback is the default pet.
+fn load_config(app: &AppHandle) -> Config {
+    let Ok(path) = config_path(app) else {
+        return Config::default();
+    };
+    std::fs::read_to_string(path)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+fn save_config(app: &AppHandle, config: &Config) -> Result<(), String> {
+    let path = config_path(app)?;
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    let text = serde_json::to_string_pretty(config).map_err(|e| e.to_string())?;
+    std::fs::write(path, text).map_err(|e| e.to_string())
+}
+
+/// Ids are `[a-z]+` in practice. Anything else is dropped so that a hand-edited
+/// file cannot smuggle a second query parameter into the window URL.
+fn param(value: &str) -> String {
+    value
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .collect()
+}
+
+fn pet_query(config: &Config) -> String {
+    format!(
+        "?window=pet&shape={}&color={}&expression={}",
+        param(&config.shape),
+        param(&config.color),
+        param(&config.expression)
+    )
+}
 
 /// Physical-pixel geometry handed to the pet window so it can turn the global
 /// cursor position into a look direction, and test the cursor against the
@@ -66,6 +142,27 @@ fn quit_app(app: AppHandle) {
     app.exit(0);
 }
 
+#[tauri::command]
+fn get_config(app: AppHandle) -> Config {
+    load_config(&app)
+}
+
+/// Persist and apply in one step. The pet view reads its appearance from the
+/// query string, so re-opening it with the new parameters is all a change needs:
+/// setting `location.search` reloads the document in place, which leaves the
+/// window, its position and the engine's behaviour otherwise untouched.
+#[tauri::command]
+fn set_config(app: AppHandle, config: Config) -> Result<Config, String> {
+    save_config(&app, &config)?;
+
+    if let Some(window) = app.get_webview_window(PET_LABEL) {
+        let query = serde_json::to_string(&pet_query(&config)).map_err(|e| e.to_string())?;
+        let _ = window.eval(format!("location.search = {query}"));
+    }
+
+    Ok(config)
+}
+
 /// Bottom-right of the primary monitor, with a margin so it does not sit under
 /// the taskbar.
 fn pet_anchor(app: &AppHandle) -> (f64, f64) {
@@ -87,11 +184,12 @@ fn create_pet(app: &AppHandle) -> tauri::Result<()> {
         return Ok(());
     }
 
+    let config = load_config(app);
     let (x, y) = pet_anchor(app);
     let window = WebviewWindowBuilder::new(
         app,
         PET_LABEL,
-        WebviewUrl::App("index.html?window=pet".into()),
+        WebviewUrl::App(format!("index.html{}", pet_query(&config)).into()),
     )
     .title("Dot")
     .inner_size(PET_SIZE, PET_SIZE)
@@ -198,7 +296,9 @@ pub fn run() {
             pet_geometry,
             set_click_through,
             start_drag,
-            quit_app
+            quit_app,
+            get_config,
+            set_config
         ])
         .setup(|app| {
             let handle = app.handle().clone();

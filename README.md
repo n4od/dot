@@ -15,29 +15,29 @@ customiser and its docs. It is deliberately **not** a git repository — the
 history was stripped, so it cannot turn this project into a nested repo, and
 `.gitignore` keeps it out of ours. To restore full history:
 
-```bash
+``bash
 git clone https://github.com/jeremy-prt/bloub.git /tmp/bloub
 git -C /tmp/bloub checkout b4bb3c1b5f93c7b87a2e8d620f667c4093d97749
-```
+``
 
 ## Running it
 
-```bash
+``bash
 pnpm install
 pnpm app:dev      # Tauri + Vite with hot reload (what you want while iterating)
 pnpm dev          # Vite only: the animation runs in a browser, with no shell
 pnpm build        # vue-tsc --noEmit && vite build
 pnpm test         # vitest run: the engine suite, in a plain Node environment
-```
+``
 
 A standalone binary needs the frontend **embedded**, and that only happens with
 the `custom-protocol` feature:
 
-```bash
+``bash
 pnpm build
 cargo build --manifest-path src-tauri/Cargo.toml --features custom-protocol
 # -> src-tauri/target/debug/dot.exe
-```
+``
 
 A bare `cargo build` compiles and runs, but the window comes up blank: Tauri
 loads a dev server URL that is not there and embeds nothing. `tauri build` adds
@@ -56,6 +56,28 @@ Both load the same `index.html` and pick a view from `?window=`.
 
 For visual work there is also `?window=pet&state=orbit`: it opens straight into
 one state instead of the idle loop.
+
+## Configuring it
+
+**Tray → Settings** opens the picker: eight shapes, twelve colours and sixteen
+expressions, each previewed by the engine itself. Every click applies immediately.
+
+The choice lives in one small JSON file:
+
+``json
+{ "shape": "triangle", "color": "violet", "expression": "somnolent" }
+``
+
+at `%APPDATA%\dev.dotscode.dot\config.json`. Delete it to go back to defaults
+(`cercle` / `encre` / `neutre`).
+
+**Rust owns that file, not the frontend.** `create_pet` runs in `setup()`, before
+any webview exists to be asked what to draw, so the config has to be readable
+without one. The pet window is opened with the values as query parameters, and a
+change re-opens it with the new ones — which is why a colour applies without
+restarting anything. A missing, unreadable or half-written file is not an error:
+unknown ids fall back to the catalogue defaults, so a hand-edited file degrades
+instead of breaking the pet.
 
 ## How the desktop-specific parts work
 
@@ -83,13 +105,11 @@ opaque and everything behind it is genuinely behind it.
 
 ## What is not here yet
 
-- Per-pet config (shape, colour, expression) persisted to app data — currently
-  read from the window URL.
-- More than one pet: the tray's *Add a pet* currently re-focuses `pet-1`; window
-  labels need to be generated (`pet-2`, `pet-3`, …).
+- More than one pet: the tray's *Add a pet* currently re-focuses `pet-1`, and the
+  config file describes a single appearance. Both need to become a list keyed by
+  window label (`pet-2`, `pet-3`, ...).
 - Autostart, always-on-top over fullscreen apps, multi-monitor placement,
   per-monitor DPI changes.
-- The customiser from `bloub` as the real settings UI.
 - Tests for anything outside `src/bot/`: the engine suite is the only coverage,
   and the pet's own behaviour (hit testing, gaze, drag) is still unproven by
   anything but hand-checking.
