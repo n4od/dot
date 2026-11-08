@@ -171,14 +171,54 @@ function outline(shape: string): string {
 }
 
 /**
- * One face per expression, posed once. Expressions do not depend on shape or
- * colour, so only the fill has to be reactive.
+ * Each chip shows a whole head, not a pair of floating eyes.
+ *
+ * An expression is mostly *eye shape* — a squint is two flat lines, a sleepy
+ * face is two dashes. On their own those read as broken glyphs; the same marks
+ * inside a silhouette read as a face. So the chip is a miniature pet, in the
+ * pet's own colour and with the real eye fill: sixteen faces of the thing you
+ * are dressing, one per expression.
  */
 const expressions = EXPRESSIONS.map((expression) => {
   const engine = new BotEngine(R, 'idle', SHAPE_BY_ID.get(DEFAULT_SHAPE)?.radii ?? null, expression)
   engine.reset('idle', 0)
-  return { id: expression.id, name: displayName(EXPRESSION_NAMES, expression.id), eyes: engine.sample(0).eyes }
+  return {
+    id: expression.id,
+    name: displayName(EXPRESSION_NAMES, expression.id),
+    frame: straightAhead(engine.sample(0))
+  }
 })
+
+/**
+ * Cancels the expression's head turn in a thumbnail.
+ *
+ * The engine's resting pose looks up-left (the reference video's pose), and a few
+ * expressions turn the head further. That is right on the desktop, but in a row
+ * of sixteen faces it reads as a misaligned glyph. Shifting every eye by the same
+ * amount puts the pair back on the face's axis while keeping the asymmetries that
+ * carry the expression — one eye higher, one narrower, mirrored tilts.
+ */
+function straightAhead(frame: BotFrame): BotFrame {
+  const parsed = frame.eyes.map((eye) => {
+    const match = /^matrix\(([^)]+)\)$/.exec(eye.matrix)
+    return match ? match[1].split(',').map(Number) : null
+  })
+  if (frame.eyes.length === 0 || parsed.some((p) => !p)) return frame
+
+  const cx = parsed.reduce((sum, p) => sum + p![4], 0) / parsed.length
+  const cy = parsed.reduce((sum, p) => sum + p![5], 0) / parsed.length
+
+  return {
+    ...frame,
+    eyes: frame.eyes.map((eye, i) => {
+      const [a, b, c, d, e, f] = parsed[i]!
+      return { ...eye, matrix: `matrix(${a},${b},${c},${d},${e - cx},${f - cy})` }
+    })
+  }
+}
+
+/* The chip crops in on the body and drops the orbits (`zoom` + `bare`), so the
+   face fills the thumbnail instead of floating in a mostly-empty box. */
 </script>
 
 <template>
@@ -219,7 +259,12 @@ const expressions = EXPRESSIONS.map((expression) => {
               @click="pick('shape', shape.id)"
             >
               <svg viewBox="-1.3 -1.3 2.6 2.6" aria-hidden="true">
-                <path :d="outline(shape.id)" :fill="ink" />
+                <path
+                  :d="outline(shape.id)"
+                  :fill="ink"
+                  stroke="rgba(90, 70, 45, 0.3)"
+                  stroke-width="0.045"
+                />
               </svg>
             </button>
           </div>
@@ -263,16 +308,15 @@ const expressions = EXPRESSIONS.map((expression) => {
               :title="expression.name"
               @click="pick('expression', expression.id)"
             >
-              <svg viewBox="-46 -46 92 92" aria-hidden="true">
-                <path
-                  v-for="(eye, i) in expression.eyes"
-                  :key="i"
-                  :d="eye.d"
-                  :transform="eye.matrix"
-                  :opacity="eye.alpha"
-                  :fill="ink"
-                />
-              </svg>
+              <PetFigure
+                class="face-figure"
+                :frame="expression.frame"
+                :ink="ink"
+                :eye-fill="eyeFill"
+                :zoom="110"
+                bare
+                aria-hidden="true"
+              />
               <span>{{ expression.name }}</span>
             </button>
           </div>
@@ -427,12 +471,12 @@ h1 {
 }
 
 .row {
-  padding: 12px 0;
+  padding: 11px 0;
   border-bottom: 1px solid var(--hairline);
 }
 
 .row:first-child {
-  padding-top: 2px;
+  padding-top: 0;
 }
 
 .row:last-child {
@@ -445,7 +489,7 @@ h1 {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 9px;
+  margin-bottom: 8px;
 }
 
 h2 {
@@ -482,28 +526,29 @@ button:focus-visible {
   gap: 7px;
 }
 
+/* Bare glyphs, like the palette: the marks are the content, so the tiles stay
+   out of the way. Sixteen boxes around sixteen faces read as a spreadsheet. */
 .chip {
   display: flex;
   align-items: center;
   justify-content: center;
+  box-sizing: border-box;
   border-radius: 12px;
-  border: 1px solid var(--hairline);
-  background: rgba(255, 255, 255, 0.55);
+  border: 0;
+  background: transparent;
   transition:
-    border-color 0.15s ease,
     background 0.15s ease,
+    box-shadow 0.15s ease,
     transform 0.15s ease;
 }
 
 .chip:hover {
-  border-color: rgba(90, 70, 45, 0.4);
-  background: #fff;
+  background: rgba(255, 255, 255, 0.8);
 }
 
 .chip.on {
-  border-color: var(--ink);
   background: #fff;
-  box-shadow: 0 1px 2px rgba(70, 52, 30, 0.1);
+  box-shadow: inset 0 0 0 1.5px var(--ink);
 }
 
 .shape {
@@ -522,7 +567,15 @@ button:focus-visible {
 }
 
 .faces {
-  grid-template-columns: repeat(auto-fill, minmax(58px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+/* Six to a row, but a short last row stays centred instead of hanging left. */
+.faces .face {
+  flex: 0 0 calc((100% - 5 * 6px) / 6);
 }
 
 .face {
@@ -531,21 +584,44 @@ button:focus-visible {
   padding: 6px 4px 5px;
 }
 
-.face svg {
+.face-figure {
   display: block;
-  width: 30px;
-  height: 30px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  /* A pale pet (Cream) would otherwise disappear into the paper. */
+  filter: drop-shadow(0 1px 1px rgba(70, 52, 30, 0.2));
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+.face:hover .face-figure {
+  transform: scale(1.05);
+}
+
+/* The selection is a ring around the face itself, not a box around the tile. */
+.face.on {
+  background: transparent;
+  box-shadow: none;
+}
+
+.face.on .face-figure {
+  transform: scale(1.08);
+  box-shadow:
+    0 0 0 2px #f7f3ec,
+    0 0 0 3.5px var(--ink);
 }
 
 .face span {
   display: flex;
   align-items: center;
   justify-content: center;
-  min-height: 20px;
-  font-size: 9.5px;
+  min-height: 18px;
+  font-size: 10px;
   line-height: 1.2;
   text-align: center;
-  color: #6b6050;
+  color: #5c5142;
 }
 
 .face.on span {

@@ -19,12 +19,19 @@ const props = withDefaults(
     ink: string
     eyeFill: string
     interactive?: boolean
+    /**
+     * Half-size of the viewBox, in engine units. The default leaves room for the
+     * orbits; a small value crops in on the body, which is what the settings
+     * picker wants for a face thumbnail.
+     */
+    zoom?: number
+    /** Body and face only — no orbits, particles or notification badge. */
+    bare?: boolean
   }>(),
-  { interactive: false }
+  { interactive: false, zoom: DEMI_VIEWBOX, bare: false }
 )
 
 const R = RAYON
-const VB = DEMI_VIEWBOX
 const uid = Math.random().toString(36).slice(2, 8)
 const clipId = `pet-clip-${uid}`
 
@@ -43,7 +50,7 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
 </script>
 
 <template>
-  <svg :viewBox="`${-VB} ${-VB} ${VB * 2} ${VB * 2}`" role="img" aria-label="Dot">
+  <svg :viewBox="`${-zoom} ${-zoom} ${zoom * 2} ${zoom * 2}`" role="img" aria-label="Dot">
     <defs>
       <!-- Eyes are clipped to the body instead of punched through it. -->
       <clipPath :id="clipId">
@@ -70,7 +77,7 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
     </defs>
 
     <!-- Back half of the orbits, behind the body. -->
-    <g fill="none" stroke-linecap="round">
+    <g v-if="!bare" fill="none" stroke-linecap="round">
       <path
         v-for="arc in frame.arcs"
         :key="`b${arc.id}`"
@@ -112,7 +119,7 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
       </g>
     </g>
 
-    <g v-if="!frame.dotsBehind">
+    <g v-if="!bare && !frame.dotsBehind">
       <component
         :is="dot.d ? 'path' : 'circle'"
         v-for="(dot, i) in frame.dots"
@@ -122,7 +129,7 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
     </g>
 
     <circle
-      v-if="frame.notif"
+      v-if="!bare && frame.notif"
       :cx="frame.notif.x"
       :cy="frame.notif.y"
       :r="frame.notif.r"
@@ -130,7 +137,7 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
     />
 
     <!-- Front half of the orbits. -->
-    <g fill="none" stroke-linecap="round">
+    <g v-if="!bare" fill="none" stroke-linecap="round">
       <path
         v-for="arc in frame.arcs"
         :key="`f${arc.id}`"

@@ -21,7 +21,9 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **`src/pet/PetFigure.vue`**, the one drawing of a pet, used by both the desktop
   window and the settings stage so the two cannot drift. Its `interactive` prop is
-  what marks the body and the eyes as click targets.
+  what marks the body and the eyes as click targets; `zoom` crops the viewBox in on
+  the body and `bare` drops the orbits and particles, which is how the expression
+  thumbnails stay legible at 42 px.
 
 - **`src/display.ts`**, English labels for the engine's French catalogue ids. The
   ids stay as storage keys, so existing config files and the upstream tests are
@@ -46,6 +48,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   identical grey cards, 86 px tiles for the options and 26 px eye glyphs with
   truncated French labels.
 
+- **The expression picker shows faces, not floating eyes.** Each of the sixteen
+  chips is now a miniature of the real pet — the engine's own frame, in the pet's
+  current colour and with its real eye fill, cropped in on the body. Eyes on their
+  own read as broken glyphs: a squint is two marks, a sleepy face is two dashes. The
+  head turn is cancelled in the thumbnails so the row reads straight-on, while the
+  per-eye asymmetries that carry the expression are kept. The short last row is
+  centred, and the panel no longer overflows at 780×600.
+
 ### Fixed
 
 - **The settings window could not scroll, and its previews were the wrong size.**
@@ -58,6 +68,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **The settings preview winked on every change.** The wink deadline outlived the
   engine rebuild, so with the clock already past it the pet winked the instant you
   picked something, on top of the perk animation.
+
+- **A pale pet vanished against the paper.** Shape silhouettes and expression
+  thumbnails were painted in the pet's colour with nothing to separate Cream from
+  the background. The silhouettes now carry a hairline stroke and the thumbnails a
+  soft drop shadow.
 
 ## [0.1.0] — 2026-11-08
 

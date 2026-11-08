@@ -72,7 +72,9 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 - **`src/pet/PetFigure.vue` draws every pet in the app** — the desktop window and the
   settings stage both use it. Do not fork the template: the picker is only honest
   because it is the same drawing. Its `interactive` prop is what puts `.hit` on the
-  body and the eyes; without it the figure is inert.
+  body and the eyes; without it the figure is inert. `zoom` and `bare` exist for the
+  picker's expression thumbnails: they crop the viewBox to the body and drop the
+  orbits, particles and badge.
 - `src/display.ts` maps the engine's French ids to English labels for the interface.
   **The ids are storage keys** (`config.json`, the upstream tests); rename a label,
   never an id.
