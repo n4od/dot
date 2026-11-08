@@ -15,29 +15,29 @@ customiser and its docs. It is deliberately **not** a git repository — the
 history was stripped, so it cannot turn this project into a nested repo, and
 `.gitignore` keeps it out of ours. To restore full history:
 
-``bash
+```bash
 git clone https://github.com/jeremy-prt/bloub.git /tmp/bloub
 git -C /tmp/bloub checkout b4bb3c1b5f93c7b87a2e8d620f667c4093d97749
-``
+```
 
 ## Running it
 
-``bash
+```bash
 pnpm install
 pnpm app:dev      # Tauri + Vite with hot reload (what you want while iterating)
 pnpm dev          # Vite only: the animation runs in a browser, with no shell
 pnpm build        # vue-tsc --noEmit && vite build
 pnpm test         # vitest run: the engine suite, in a plain Node environment
-``
+```
 
 A standalone binary needs the frontend **embedded**, and that only happens with
 the `custom-protocol` feature:
 
-``bash
+```bash
 pnpm build
 cargo build --manifest-path src-tauri/Cargo.toml --features custom-protocol
 # -> src-tauri/target/debug/dot.exe
-``
+```
 
 A bare `cargo build` compiles and runs, but the window comes up blank: Tauri
 loads a dev server URL that is not there and embeds nothing. `tauri build` adds
@@ -64,9 +64,9 @@ expressions, each previewed by the engine itself. Every click applies immediatel
 
 The choice lives in one small JSON file:
 
-``json
+```json
 { "shape": "triangle", "color": "violet", "expression": "somnolent" }
-``
+```
 
 at `%APPDATA%\dev.dotscode.dot\config.json`. Delete it to go back to defaults
 (`cercle` / `encre` / `neutre`).
