@@ -69,6 +69,16 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 - `src/bot/engine.ts` is clock-free: `sample(now)` is pure with `now` in seconds, and
   `reset`/`setState`/`setLook` all take a clock time. Never read `Date.now()` inside
   the engine — the pet relies on pausing and resuming without drifting out of pose.
+- **`src/pet/PetFigure.vue` draws every pet in the app** — the desktop window and the
+  settings stage both use it. Do not fork the template: the picker is only honest
+  because it is the same drawing. Its `interactive` prop is what puts `.hit` on the
+  body and the eyes; without it the figure is inert.
+- `src/display.ts` maps the engine's French ids to English labels for the interface.
+  **The ids are storage keys** (`config.json`, the upstream tests); rename a label,
+  never an id.
+- The settings window is a fixed-height document with one scrolling region
+  (`.panel`): the page itself must not scroll, or the stage scrolls away from the
+  controls.
 
 ## Rendering constraints that look like style choices
 
@@ -87,7 +97,7 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   settings preview so the picker cannot misrepresent the pet.
 - `class="hit"` is load-bearing. The click-through test is
   `elementFromPoint(…).closest('.hit')`; renaming or dropping those classes silently
-  makes the pet unclickable.
+  makes the pet unclickable. They come from `PetFigure`'s `interactive` prop.
 - The pet window starts with `set_ignore_cursor_events(true)`. If the per-frame hit
   test stops flipping it, the pet is visible but invisible to the mouse.
 

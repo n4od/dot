@@ -224,8 +224,8 @@ fn open_settings(app: &AppHandle) -> tauri::Result<()> {
         WebviewUrl::App("index.html?window=settings".into()),
     )
     .title("Dot - Settings")
-    .inner_size(600.0, 460.0)
-    .min_inner_size(460.0, 340.0)
+    .inner_size(780.0, 600.0)
+    .min_inner_size(660.0, 520.0)
     .center()
     .build()?;
     Ok(())

@@ -1,0 +1,153 @@
+<script setup lang="ts">
+import type { BotFrame } from '../bot/engine'
+import { NOTIF_BLUE } from '../bot/decor'
+import { DEMI_VIEWBOX, RAYON } from '../bot/repere'
+
+/*
+ * One drawing of a pet, shared by the desktop window and the settings stage.
+ * If these were two templates they would drift, and the picker would start
+ * promising something the pet does not do.
+ *
+ * `interactive` marks the shapes that accept a click. Only the body and the eyes
+ * count: the orbits and the particles fly well outside the silhouette, and a pet
+ * you can grab by its orbit is a pet that steals clicks from the desktop.
+ */
+
+const props = withDefaults(
+  defineProps<{
+    frame: BotFrame
+    ink: string
+    eyeFill: string
+    interactive?: boolean
+  }>(),
+  { interactive: false }
+)
+
+const R = RAYON
+const VB = DEMI_VIEWBOX
+const uid = Math.random().toString(36).slice(2, 8)
+const clipId = `pet-clip-${uid}`
+
+function dotAttrs(dot: BotFrame['dots'][number]) {
+  // On a transparent window there is no paper colour to fade towards, so depth
+  // is expressed as opacity rather than as a blend into the background.
+  const common = { fill: dot.color ?? props.ink, opacity: dot.opacity * (dot.depth ?? 1) }
+  return dot.d
+    ? {
+        ...common,
+        d: dot.d,
+        transform: `translate(${dot.x} ${dot.y}) rotate(${dot.rot ?? 0}) scale(${R})`
+      }
+    : { ...common, cx: dot.x, cy: dot.y, r: dot.r }
+}
+</script>
+
+<template>
+  <svg :viewBox="`${-VB} ${-VB} ${VB * 2} ${VB * 2}`" role="img" aria-label="Dot">
+    <defs>
+      <!-- Eyes are clipped to the body instead of punched through it. -->
+      <clipPath :id="clipId">
+        <path :d="frame.bodyPath" />
+      </clipPath>
+
+      <linearGradient
+        v-for="arc in frame.arcs"
+        :id="`${uid}-${arc.id}`"
+        :key="arc.id"
+        gradientUnits="userSpaceOnUse"
+        :x1="arc.grad.x1"
+        :y1="arc.grad.y1"
+        :x2="arc.grad.x2"
+        :y2="arc.grad.y2"
+      >
+        <stop
+          v-for="(c, i) in arc.grad.stops"
+          :key="i"
+          :offset="i / (arc.grad.stops.length - 1)"
+          :stop-color="c"
+        />
+      </linearGradient>
+    </defs>
+
+    <!-- Back half of the orbits, behind the body. -->
+    <g fill="none" stroke-linecap="round">
+      <path
+        v-for="arc in frame.arcs"
+        :key="`b${arc.id}`"
+        :d="arc.back"
+        :stroke="`url(#${uid}-${arc.id})`"
+        :stroke-width="arc.width"
+        :opacity="arc.opacity"
+      />
+    </g>
+
+    <g v-if="frame.dotsBehind">
+      <component
+        :is="dot.d ? 'path' : 'circle'"
+        v-for="(dot, i) in frame.dots"
+        :key="`pb${i}`"
+        v-bind="dotAttrs(dot)"
+      />
+    </g>
+
+    <g :opacity="frame.bodyAlpha">
+      <path :class="{ hit: interactive }" :d="frame.bodyPath" :fill="ink" />
+
+      <g :class="{ hit: interactive }" :clip-path="`url(#${clipId})`">
+        <path
+          v-for="(eye, i) in frame.eyes"
+          :key="i"
+          :d="eye.d"
+          :transform="eye.matrix"
+          :opacity="eye.alpha"
+          :fill="eyeFill"
+        />
+        <circle
+          v-if="frame.notch"
+          :cx="frame.notch.x"
+          :cy="frame.notch.y"
+          :r="frame.notch.r"
+          :fill="eyeFill"
+        />
+      </g>
+    </g>
+
+    <g v-if="!frame.dotsBehind">
+      <component
+        :is="dot.d ? 'path' : 'circle'"
+        v-for="(dot, i) in frame.dots"
+        :key="`pf${i}`"
+        v-bind="dotAttrs(dot)"
+      />
+    </g>
+
+    <circle
+      v-if="frame.notif"
+      :cx="frame.notif.x"
+      :cy="frame.notif.y"
+      :r="frame.notif.r"
+      :fill="NOTIF_BLUE"
+    />
+
+    <!-- Front half of the orbits. -->
+    <g fill="none" stroke-linecap="round">
+      <path
+        v-for="arc in frame.arcs"
+        :key="`f${arc.id}`"
+        :d="arc.front"
+        :stroke="`url(#${uid}-${arc.id})`"
+        :stroke-width="arc.width"
+        :opacity="arc.opacity"
+      />
+    </g>
+  </svg>
+</template>
+
+<style scoped>
+svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+</style>

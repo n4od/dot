@@ -10,9 +10,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 
 - **The pet is configurable, and remembers it.** Tray → Settings opens a picker for
-  shape, colour and expression, previewed by the engine itself, and each click
-  applies to the running pet immediately. The choice is a small `config.json` in
-  the app config directory.
+  shape, colour and expression, and every click applies to the running pet
+  immediately. The choice is a small `config.json` in the app config directory.
 
   Rust owns that file rather than the frontend: the pet window is created in
   `setup()`, before any webview exists that could be asked what to draw. The values
@@ -20,8 +19,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   same position. A missing or unreadable file falls back to the catalogue defaults,
   and unknown ids resolve to defaults rather than failing to start.
 
-- **`src/contrast.ts`**, the eye-fill rule lifted out of the pet view so the
-  settings preview and the pet cannot disagree about what the eyes look like.
+- **`src/pet/PetFigure.vue`**, the one drawing of a pet, used by both the desktop
+  window and the settings stage so the two cannot drift. Its `interactive` prop is
+  what marks the body and the eyes as click targets.
+
+- **`src/display.ts`**, English labels for the engine's French catalogue ids. The
+  ids stay as storage keys, so existing config files and the upstream tests are
+  unaffected.
+
+- **`src/contrast.ts`**, the eye-fill rule lifted out of the pet view so the preview
+  and the pet cannot disagree about what the eyes look like.
 
 - **The engine's test suite runs in this repo.** `pnpm test` executes the six Vitest
   suites from `bloub` — 94 tests over `src/bot/`, in a plain Node environment in
@@ -29,14 +36,28 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   fails the build rather than only the tests. Vitest runs with `globals: false`, so
   each test imports `describe`, `expect` and `it` from `vitest` explicitly.
 
+### Changed
+
+- **The settings window is a workbench instead of a form.** A live, animated pet on
+  a paper stage at the left — the real engine, not a still — with quiet controls at
+  the right: a single row of eight shape chips, the palette as bare swatches rather
+  than twelve boxes with dots in them, and the sixteen expressions as legible faces
+  with names, all fitting without a scrollbar at 780×600. Previously it was four
+  identical grey cards, 86 px tiles for the options and 26 px eye glyphs with
+  truncated French labels.
+
 ### Fixed
 
 - **The settings window could not scroll, and its previews were the wrong size.**
   `src/styles.css` applied its pet-window rules to every window: `overflow: hidden`
   on `html`, `body` and `#app` clipped the picker's expression grid out of reach,
   and `#app svg { width: 100%; height: 100% }` overrode the scoped sizes, so the
-  30 px shape previews and 26 px expression faces were being stretched. Both are now
-  scoped to `html[data-window='pet']`, and the settings window scrolls as a document.
+  shape previews and expression faces were being stretched. Both are now scoped to
+  `html[data-window='pet']`.
+
+- **The settings preview winked on every change.** The wink deadline outlived the
+  engine rebuild, so with the clock already past it the pet winked the instant you
+  picked something, on top of the perk animation.
 
 ## [0.1.0] — 2026-11-08
 

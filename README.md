@@ -50,7 +50,7 @@ The tray icon is the only way to quit while the pet is on screen: **Quit**.
 | Window | Created in | Shape |
 |---|---|---|
 | `pet-1` | `src-tauri/src/lib.rs` | 180×180, transparent, undecorated, always on top, skipped from the taskbar |
-| `settings` | tray → Settings | normal decorated window |
+| `settings` | tray → Settings | 780×600, normal decorated window |
 
 Both load the same `index.html` and pick a view from `?window=`.
 
@@ -59,8 +59,18 @@ one state instead of the idle loop.
 
 ## Configuring it
 
-**Tray → Settings** opens the picker: eight shapes, twelve colours and sixteen
-expressions, each previewed by the engine itself. Every click applies immediately.
+**Tray → Settings** is a workbench: the pet sits on a stage at the left, alive —
+blinking, and winking every so often — while shape, colour and expression are
+picked at the right. Every click applies to the pet on your desktop immediately.
+
+The pet on the stage is not an illustration. It is the same engine the desktop
+window runs, sampled on the same clock-free `sample(t)` and drawn by the same
+component (`src/pet/PetFigure.vue`), so the bench cannot promise something the
+pet will not do.
+
+Option names are English (`Circle`, `Ink`, `Sleepy`); the ids behind them stay
+French, because those are what the engine, its tests and the config file use.
+`src/display.ts` holds the mapping.
 
 The choice lives in one small JSON file:
 

@@ -53,21 +53,17 @@ html[data-window='pet'] #app svg {
 
 /* ----------------------------------------------------------- settings window
  *
- * The picker is taller than the window, so this one scrolls. `height: auto` on
- * body and #app lets the content set the height and leaves the scrolling to
- * <html>, which avoids two nested scrollbars.
+ * A fixed-height document with one scrolling region inside it: the stage has to
+ * stay put while the expression grid pages past it, so the page itself must not
+ * scroll. The panel in `SettingsView.vue` owns the scrollbar.
  */
 html[data-window='settings'],
 html[data-window='settings'] body,
 html[data-window='settings'] #app {
-  height: auto;
-  background: #fdfdfd;
-  pointer-events: auto;
-  color: #1b1b22;
-  font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
-}
-
-html[data-window='settings'] {
   height: 100%;
-  overflow-y: auto;
+  overflow: hidden;
+  background: #f7f3ec;
+  pointer-events: auto;
+  color: #241d15;
+  font: 13.5px/1.5 ui-sans-serif, 'Segoe UI Variable Text', 'Segoe UI', system-ui, sans-serif;
 }

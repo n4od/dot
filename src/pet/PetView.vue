@@ -6,10 +6,10 @@ import { BotEngine, type BotFrame } from '../bot/engine'
 import { STATE_BY_ID, type StateId } from '../bot/states'
 import { DEFAULT_EXPRESSION, EXPRESSION_BY_ID } from '../bot/expressions'
 import { COLOR_BY_ID, DEFAULT_COLOR, DEFAULT_SHAPE, SHAPE_BY_ID } from '../bot/skins'
-import { DEMI_VIEWBOX, RAYON } from '../bot/repere'
-import { NOTIF_BLUE } from '../bot/decor'
+import { RAYON } from '../bot/repere'
 import { clamp } from '../bot/math'
 import { eyeFillFor } from '../contrast'
+import PetFigure from './PetFigure.vue'
 
 /*
  * A desktop pet is a client of the same clock-free engine the web demo uses:
@@ -34,9 +34,6 @@ const ink = computed(() => inkColor)
 const eyeFill = eyeFillFor(inkColor)
 
 const R = RAYON
-const VB = DEMI_VIEWBOX
-const uid = Math.random().toString(36).slice(2, 8)
-const clipId = `pet-clip-${uid}`
 
 const engine = new BotEngine(R, 'idle', shapeRadii, expression)
 engine.reset('idle', 0)
@@ -291,128 +288,26 @@ onBeforeUnmount(() => {
 
 /* --------------------------------------------------------------- template */
 
-function dotAttrs(dot: BotFrame['dots'][number]) {
-  // On a transparent window there is no paper colour to fade towards, so depth
-  // is expressed as opacity rather than as a blend into the background.
-  const common = { fill: dot.color ?? ink.value, opacity: dot.opacity * (dot.depth ?? 1) }
-  return dot.d
-    ? {
-        ...common,
-        d: dot.d,
-        transform: `translate(${dot.x} ${dot.y}) rotate(${dot.rot ?? 0}) scale(${R})`
-      }
-    : { ...common, cx: dot.x, cy: dot.y, r: dot.r }
+function onFigurePointerDown(event: PointerEvent) {
+  onPointerDown(event)
 }
 </script>
 
 <template>
-  <svg
-    :viewBox="`${-VB} ${-VB} ${VB * 2} ${VB * 2}`"
-    role="img"
-    aria-label="Dot"
-    @pointerdown="onPointerDown"
-  >
-    <defs>
-      <!-- Eyes are clipped to the body instead of punched through it. -->
-      <clipPath :id="clipId">
-        <path :d="frame.bodyPath" />
-      </clipPath>
-
-      <linearGradient
-        v-for="arc in frame.arcs"
-        :id="`${uid}-${arc.id}`"
-        :key="arc.id"
-        gradientUnits="userSpaceOnUse"
-        :x1="arc.grad.x1"
-        :y1="arc.grad.y1"
-        :x2="arc.grad.x2"
-        :y2="arc.grad.y2"
-      >
-        <stop
-          v-for="(c, i) in arc.grad.stops"
-          :key="i"
-          :offset="i / (arc.grad.stops.length - 1)"
-          :stop-color="c"
-        />
-      </linearGradient>
-    </defs>
-
-    <!-- Back half of the orbits, behind the body. -->
-    <g fill="none" stroke-linecap="round">
-      <path
-        v-for="arc in frame.arcs"
-        :key="`b${arc.id}`"
-        :d="arc.back"
-        :stroke="`url(#${uid}-${arc.id})`"
-        :stroke-width="arc.width"
-        :opacity="arc.opacity"
-      />
-    </g>
-
-    <g v-if="frame.dotsBehind">
-      <component
-        :is="dot.d ? 'path' : 'circle'"
-        v-for="(dot, i) in frame.dots"
-        :key="`pb${i}`"
-        v-bind="dotAttrs(dot)"
-      />
-    </g>
-
-    <g :opacity="frame.bodyAlpha">
-      <path class="hit" :d="frame.bodyPath" :fill="ink" />
-
-      <g class="hit" :clip-path="`url(#${clipId})`">
-        <path
-          v-for="(eye, i) in frame.eyes"
-          :key="i"
-          :d="eye.d"
-          :transform="eye.matrix"
-          :opacity="eye.alpha"
-          :fill="eyeFill"
-        />
-        <circle
-          v-if="frame.notch"
-          :cx="frame.notch.x"
-          :cy="frame.notch.y"
-          :r="frame.notch.r"
-          :fill="eyeFill"
-        />
-      </g>
-    </g>
-
-    <g v-if="!frame.dotsBehind">
-      <component
-        :is="dot.d ? 'path' : 'circle'"
-        v-for="(dot, i) in frame.dots"
-        :key="`pf${i}`"
-        v-bind="dotAttrs(dot)"
-      />
-    </g>
-
-    <circle
-      v-if="frame.notif"
-      :cx="frame.notif.x"
-      :cy="frame.notif.y"
-      :r="frame.notif.r"
-      :fill="NOTIF_BLUE"
-    />
-
-    <!-- Front half of the orbits. -->
-    <g fill="none" stroke-linecap="round">
-      <path
-        v-for="arc in frame.arcs"
-        :key="`f${arc.id}`"
-        :d="arc.front"
-        :stroke="`url(#${uid}-${arc.id})`"
-        :stroke-width="arc.width"
-        :opacity="arc.opacity"
-      />
-    </g>
-  </svg>
+  <!-- The figure is shared with the settings stage; `interactive` is what makes
+       the body and the eyes the only clickable parts. -->
+  <PetFigure
+    :frame="frame"
+    :ink="ink"
+    :eye-fill="eyeFill"
+    interactive
+    class="pet"
+    @pointerdown="onFigurePointerDown"
+  />
 </template>
 
 <style scoped>
-svg {
+.pet {
   cursor: grab;
 }
 </style>
