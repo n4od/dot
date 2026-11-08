@@ -5,6 +5,16 @@ All notable changes to Dot are recorded here.
 Format: [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **The engine's test suite runs in this repo.** `pnpm test` executes the six Vitest
+  suites from `bloub` — 94 tests over `src/bot/`, in a plain Node environment in
+  about 15 seconds. `pnpm build` typechecks them as well, so a type error in a test
+  fails the build rather than only the tests. Vitest runs with `globals: false`, so
+  each test imports `describe`, `expect` and `it` from `vitest` explicitly.
+
 ## [0.1.0] — 2026-11-08
 
 First release. A desktop pet in a transparent window, with no page behind it: the

@@ -6,7 +6,7 @@ clicks through wherever it is not painted.
 
 Built on the morph engine from [`jeremy-prt/bloub`](bloub) (MIT), pinned at
 commit [`b4bb3c1b5f93c7b87a2e8d620f667c4093d97749`](https://github.com/jeremy-prt/bloub/commit/b4bb3c1b5f93c7b87a2e8d620f667c4093d97749).
-`src/bot/` is a copy of that engine, minus its tests: it is framework-free,
+`src/bot/` is a copy of that engine, plus its test suite: it is framework-free,
 DOM-free and clock-free, so `sample(t)` is a pure function of time. That is what
 lets the pet pause, resume and sleep without ever drifting out of pose.
 
@@ -27,6 +27,7 @@ pnpm install
 pnpm app:dev      # Tauri + Vite with hot reload (what you want while iterating)
 pnpm dev          # Vite only: the animation runs in a browser, with no shell
 pnpm build        # vue-tsc --noEmit && vite build
+pnpm test         # vitest run: the engine suite, in a plain Node environment
 ```
 
 A standalone binary needs the frontend **embedded**, and that only happens with
@@ -89,7 +90,9 @@ opaque and everything behind it is genuinely behind it.
 - Autostart, always-on-top over fullscreen apps, multi-monitor placement,
   per-monitor DPI changes.
 - The customiser from `bloub` as the real settings UI.
-- The engine's test suite ported over (it is still in `bloub/src/bot/`).
+- Tests for anything outside `src/bot/`: the engine suite is the only coverage,
+  and the pet's own behaviour (hit testing, gaze, drag) is still unproven by
+  anything but hand-checking.
 
 ## Licence
 

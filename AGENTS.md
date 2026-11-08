@@ -18,11 +18,16 @@ cmd /c "pnpm install"
 cmd /c "pnpm app:dev"    # Tauri + Vite, hot reload. The real dev loop.
 cmd /c "pnpm dev"        # Vite only, in a browser, no shell — for visual work
 cmd /c "pnpm build"      # vue-tsc --noEmit && vite build. The only typecheck gate.
+cmd /c "pnpm test"       # vitest run: the engine suite, plain Node env (~15s)
 cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 ```
 
-- **There is no `pnpm test`.** The engine's Vitest suites exist only in
-  `bloub/src/bot/*.test.ts` and are not wired into this repo.
+- `pnpm test` covers **`src/bot/*.test.ts` only** — 6 files, 94 tests. They are a
+  copy of the upstream suites and are the only automated coverage in the repo.
+  Vitest runs with `globals: false`, so every test imports
+  `{ describe, expect, it }` from `vitest` explicitly.
+- `pnpm build` typechecks the test files too (tsconfig includes `src/**/*.ts`), so a
+  type error in a test fails the build, not just the tests.
 - Browser iteration: `http://localhost:1421/?window=pet&state=orbit`. `?shape=`,
   `?color=` and `?expression=` are also read from the URL.
 
@@ -47,9 +52,10 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   plugin, so `capabilities/default.json` only needs `core:default`.
 - Window labels are hardcoded (`pet-1`, `settings`); "Add a pet" currently just
   re-focuses `pet-1`.
-- `src/bot/` is a frozen copy of `jeremy-prt/bloub` @ `b4bb3c1` (MIT). `bloub/` is a
-  reference snapshot that is gitignored and excluded from Vite's watcher —
-  **editing it changes nothing**. Re-copy files by hand if upstream is updated.
+- `src/bot/` is a frozen copy of `jeremy-prt/bloub` @ `b4bb3c1` (MIT), tests
+  included. `bloub/` is a reference snapshot that is gitignored and excluded from
+  Vite's watcher — **editing it changes nothing**, including its copy of the test
+  suite, which is never run. Re-copy files by hand if upstream is updated.
 - `src/bot/engine.ts` is clock-free: `sample(now)` is pure with `now` in seconds, and
   `reset`/`setState`/`setLook` all take a clock time. Never read `Date.now()` inside
   the engine — the pet relies on pausing and resuming without drifting out of pose.
