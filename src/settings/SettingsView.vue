@@ -560,10 +560,29 @@ button:focus-visible {
   display: block;
   width: 100%;
   height: 100%;
+  border-radius: 50%;
+  /* Same lift as the expression faces, so the rows read as one instrument. */
+  filter: drop-shadow(0 1px 1px rgba(70, 52, 30, 0.2));
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
+.shape:hover svg {
+  transform: scale(1.05);
+}
+
+/* Selection is a ring around the mark, not a box around the tile. */
 .shape.on {
-  transform: translateY(-1px);
+  background: transparent;
+  box-shadow: none;
+}
+
+.shape.on svg {
+  transform: scale(1.06);
+  box-shadow:
+    0 0 0 2px #f7f3ec,
+    0 0 0 3.5px var(--ink);
 }
 
 .faces {
@@ -642,7 +661,9 @@ button:focus-visible {
   border-radius: 50%;
   background: var(--swatch);
   box-shadow: inset 0 0 0 1px rgba(40, 32, 20, 0.14);
-  transition: transform 0.15s ease;
+  transition:
+    transform 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .swatch:hover {
@@ -650,8 +671,11 @@ button:focus-visible {
 }
 
 .swatch.on {
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
+  transform: scale(1.06);
+  box-shadow:
+    inset 0 0 0 1px rgba(40, 32, 20, 0.14),
+    0 0 0 2px #f7f3ec,
+    0 0 0 3.5px var(--ink);
 }
 
 /* ----------------------------------------------------------------- footer */

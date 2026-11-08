@@ -44,9 +44,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   a paper stage at the left — the real engine, not a still — with quiet controls at
   the right: a single row of eight shape chips, the palette as bare swatches rather
   than twelve boxes with dots in them, and the sixteen expressions as legible faces
-  with names, all fitting without a scrollbar at 780×600. Previously it was four
-  identical grey cards, 86 px tiles for the options and 26 px eye glyphs with
-  truncated French labels.
+  with names, all fitting without a scrollbar at 780×600. All three rows speak one
+  language: the mark is the content, and selection is a ring around it rather than a
+  box around the tile. Previously it was four identical grey cards, 86 px tiles for
+  the options and 26 px eye glyphs with truncated French labels.
 
 - **The expression picker shows faces, not floating eyes.** Each of the sixteen
   chips is now a miniature of the real pet — the engine's own frame, in the pet's
