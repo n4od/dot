@@ -1,0 +1,7 @@
+# One line-ending convention for everyone: LF in the repo and in the working
+# tree, whatever `core.autocrlf` says on a given machine.
+* text=auto eol=lf
+
+# Generated binary assets: never diff, never convert.
+*.png binary
+*.ico binary

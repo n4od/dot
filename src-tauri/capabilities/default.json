@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Every window may call the core defaults; the pet-specific commands are plain invokes.",
+  "windows": ["*"],
+  "permissions": ["core:default"]
+}

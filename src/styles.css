@@ -1,0 +1,47 @@
+/*
+ * The pet window is a transparent, frameless WebView. Everything that is not
+ * painted by the SVG must stay fully transparent, including the <html> and
+ * <body> backgrounds — a white default here is what turns "transparent window"
+ * into "white square" on Windows.
+ */
+html,
+body,
+#app {
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+
+/* No pointer events by default: hit testing is done per painted shape so that
+ * the transparent corners of the window let clicks through to the desktop. */
+html,
+body,
+#app,
+#app svg {
+  pointer-events: none;
+}
+
+#app svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.hit {
+  pointer-events: auto;
+}
+
+html[data-window='settings'],
+html[data-window='settings'] body,
+html[data-window='settings'] #app {
+  background: #fdfdfd;
+  pointer-events: auto;
+  color: #1b1b22;
+  font: 14px/1.5 system-ui, -apple-system, 'Segoe UI', sans-serif;
+}

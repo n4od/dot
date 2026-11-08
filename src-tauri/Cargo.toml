@@ -1,0 +1,25 @@
+[package]
+name = "dot"
+version = "0.1.0"
+description = "Dot, a desktop pet"
+edition = "2021"
+rust-version = "1.77.2"
+license = "MIT"
+authors = ["N4OD"]
+
+[lib]
+name = "dot_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[features]
+# Embeds the built frontend into the binary. `tauri build` passes this
+# automatically; a bare `cargo build` without it produces a blank window.
+custom-protocol = ["tauri/custom-protocol"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon", "image-png"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
