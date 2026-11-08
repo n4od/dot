@@ -51,6 +51,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   third style; adding one needs no Rust change, because the settings pill is
   generated from the style ids and the pet validates against them.
 
+- **`peluche` (Plush), and a style seam that is data rather than code.** Plush is
+  the same light, warm and diffuse — a broad highlight, a big soft sheen, a gentle
+  edge — where Clay is firm and glossy. Both are now described as a `Surface` in
+  `src/pet/materials.ts`: three tones, the light's position and reach, and the
+  strength of the shade, sheen and eye recession. `PetFigure.vue` paints any
+  `Surface` without knowing a style's name, so adding one of this kind is a
+  `Surface` and a label and **no drawing code at all**. It grows only for a new
+  *kind* of element — an outline, a second silhouette — not for new numbers.
+
 ### Changed
 
 - **The settings window is a workbench instead of a form.** A live, animated pet on

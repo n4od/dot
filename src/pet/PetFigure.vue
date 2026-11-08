@@ -3,7 +3,7 @@ import { computed } from 'vue'
 import type { BotFrame } from '../bot/engine'
 import { NOTIF_BLUE } from '../bot/decor'
 import { DEMI_VIEWBOX, RAYON } from '../bot/repere'
-import { clayEyeLid, clayMaterial, type StyleId } from './materials'
+import { eyeShade, surfaceFor, type StyleId } from './materials'
 
 /*
  * One drawing of a pet, shared by the desktop window and the settings stage.
@@ -36,16 +36,16 @@ const props = withDefaults(
 )
 
 /**
- * `argile` lights the body and recesses the eyes; everything else is unchanged.
+ * The style seam. `surfaceFor` turns the id and the ink into a `Surface`, or
+ * `null` for `plat` — the flat fill, which is the absence of a surface.
  *
- * The style seam: everything outside this branch is shared by every style. A new
- * style is a flag here plus a branch in the template below — never a fork of the
- * component, or the picker would start promising something the pet will not do.
- * The definitions and the full checklist live in `./materials.ts`.
+ * Everything below this is shared by every style: the template paints whatever
+ * surface it is handed, so a new one of this kind is data in `./materials.ts` and
+ * needs no change here. A branch is only owed when a style brings a new *kind of
+ * element* — an outline, a second silhouette — not new numbers.
  */
-const clay = computed(() => props.styleId === 'argile')
-const mat = computed(() => clayMaterial(props.ink))
-const eyeLid = computed(() => clayEyeLid(props.eyeFill))
+const surface = computed(() => surfaceFor(props.styleId, props.ink))
+const eyeLid = computed(() => eyeShade(props.eyeFill, surface.value?.eyeDepth ?? 0))
 
 const R = RAYON
 const uid = Math.random().toString(36).slice(2, 8)
@@ -91,31 +91,31 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
         />
       </linearGradient>
 
-      <!-- Clay: one lit body. The light sits up-left, the specular is a second,
-           smaller highlight, and the shade is a vertical wash inside the body. -->
-      <template v-if="clay">
+      <!-- A lit style: the body is a radial gradient, a vertical wash darkens the
+           lower edge, and a sheen sits where the light lands. `plat` uses none. -->
+      <template v-if="surface">
         <radialGradient
           :id="`${uid}-body`"
           gradientUnits="userSpaceOnUse"
-          :cx="-0.3 * R"
-          :cy="-0.32 * R"
-          :r="1.5 * R"
-          :fx="-0.44 * R"
-          :fy="-0.48 * R"
+          :cx="surface.lx * R"
+          :cy="surface.ly * R"
+          :r="surface.reach * R"
+          :fx="(surface.lx - 0.14) * R"
+          :fy="(surface.ly - 0.16) * R"
         >
-          <stop offset="0" :stop-color="mat.light" />
-          <stop offset="0.34" :stop-color="mat.base" />
-          <stop offset="1" :stop-color="mat.deep" />
+          <stop offset="0" :stop-color="surface.light" />
+          <stop :offset="surface.mid" :stop-color="surface.base" />
+          <stop offset="1" :stop-color="surface.deep" />
         </radialGradient>
 
         <linearGradient :id="`${uid}-shade`" x1="0" y1="0" x2="0" y2="1">
           <stop offset="0.45" stop-color="#000" stop-opacity="0" />
-          <stop offset="1" stop-color="#000" stop-opacity="0.22" />
+          <stop offset="1" stop-color="#000" :stop-opacity="surface.shade" />
         </linearGradient>
 
         <radialGradient :id="`${uid}-spec`">
-          <stop offset="0" stop-color="#fff" stop-opacity="0.55" />
-          <stop offset="0.6" stop-color="#fff" stop-opacity="0.12" />
+          <stop offset="0" stop-color="#fff" stop-opacity="1" />
+          <stop offset="0.6" stop-color="#fff" stop-opacity="0.22" />
           <stop offset="1" stop-color="#fff" stop-opacity="0" />
         </radialGradient>
 
@@ -128,7 +128,7 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
     </defs>
 
     <!-- Back half of the orbits, behind the body. -->
-    <g v-if="!bare" fill="none" stroke-linecap="round" :opacity="clay ? 0.9 : 1">
+    <g v-if="!bare" fill="none" stroke-linecap="round" :opacity="surface ? surface.orbits : 1">
       <path
         v-for="arc in frame.arcs"
         :key="`b${arc.id}`"
@@ -152,17 +152,19 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
       <path
         :class="{ hit: interactive }"
         :d="frame.bodyPath"
-        :fill="clay ? `url(#${uid}-body)` : ink"
+        :fill="surface ? `url(#${uid}-body)` : ink"
       />
 
-      <g v-if="clay" :clip-path="`url(#${clipId})`">
+      <g v-if="surface" :clip-path="`url(#${clipId})`">
         <path :d="frame.bodyPath" :fill="`url(#${uid}-shade)`" />
         <ellipse
-          :cx="-0.32 * R"
-          :cy="-0.36 * R"
-          :rx="0.26 * R"
-          :ry="0.15 * R"
-          :transform="`rotate(-32 ${-0.32 * R} ${-0.36 * R})`"
+          v-if="surface.gloss > 0"
+          :cx="(surface.lx - 0.02) * R"
+          :cy="(surface.ly - 0.04) * R"
+          :rx="surface.glossR * R"
+          :ry="surface.glossR * 0.58 * R"
+          :transform="`rotate(-32 ${(surface.lx - 0.02) * R} ${(surface.ly - 0.04) * R})`"
+          :opacity="surface.gloss"
           :fill="`url(#${uid}-spec)`"
         />
       </g>
@@ -174,7 +176,7 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
           :d="eye.d"
           :transform="eye.matrix"
           :opacity="eye.alpha"
-          :fill="clay ? `url(#${uid}-eye)` : eyeFill"
+          :fill="surface ? `url(#${uid}-eye)` : eyeFill"
         />
         <circle
           v-if="frame.notch"
@@ -204,7 +206,7 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
     />
 
     <!-- Front half of the orbits. -->
-    <g v-if="!bare" fill="none" stroke-linecap="round" :opacity="clay ? 0.9 : 1">
+    <g v-if="!bare" fill="none" stroke-linecap="round" :opacity="surface ? surface.orbits : 1">
       <path
         v-for="arc in frame.arcs"
         :key="`f${arc.id}`"

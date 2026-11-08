@@ -6,28 +6,30 @@ import { mixHex } from '../bot/skins'
  * The engine hands over geometry — a body path, eyes, orbits, particles — and
  * knows nothing about fill. A "style" is a way of spending that geometry:
  *
- *   plat    one flat hex per shape, the way the upstream web demo does it.
- *   argile  a lit surface: a highlight towards the light, a shaded edge turning
- *           away, a specular, and eyes that read as pressed in.
+ *   plat     one flat hex per shape, the way the upstream web demo does it.
+ *   argile   a lit surface: a firm highlight, a specular, a shaded edge, and eyes
+ *            that read as pressed in. Reads as a solid, slightly glossy object.
+ *   peluche  the same idea, warm and soft: a broad diffuse light, a whisper of a
+ *            sheen, a gentle edge and barely-recessed eyes. Reads as a toy.
  *
- * This module owns the *definitions* (which styles exist, the ids, and the
- * colours a style derives from the ink). `src/pet/PetFigure.vue` owns the
- * *drawing*: it branches on the id and emits the SVG. Keep the split: nothing
- * here draws, and PetFigure never hard-codes a colour a style could compute.
+ * A style is DATA, not code. `Surface` below is the whole vocabulary — the three
+ * tones, where the light sits, how far it reaches, how strong the shade, the
+ * sheen and the eye recession are. `surfaceFor` maps a style id to one of those.
+ * `src/pet/PetFigure.vue` paints whatever `Surface` it is handed, so adding a
+ * style of this kind touches no drawing code at all.
  *
  * ------------------------------------------------------------------ ADDING A STYLE
  *
  *   1. `StyleId` and `STYLE_IDS` below — add the id. These are storage keys:
  *      `config.json` writes them, so NEVER rename or reorder an existing one,
- *      only add. `argile` is French to match the engine's other ids; a new one
- *      should follow suit.
- *   2. Add a paint function here (`glassMaterial(ink)`, ...). Take the ink hex
- *      and return the colours the drawing needs. Derive everything from `ink`
- *      so the style works for all twelve colours, including the near-black and
+ *      only add. The ids are French to match the engine's others.
+ *   2. `surfaceFor` — return a `Surface`. Derive every colour from `ink` so the
+ *      style works for all twelve colours, including the near-black and
  *      near-white ends.
  *   3. `STYLE_NAMES` in `src/display.ts` — the English label.
- *   4. `src/pet/PetFigure.vue` — a `computed` flag plus the draw branch. This is
- *      the only file that grows per style.
+ *   4. Nothing else. `PetFigure.vue` paints any `Surface`; it needs a change only
+ *      when a style introduces a *new kind of element* — an outline, a second
+ *      silhouette, a tinted orbit — rather than new numbers.
  *   5. Nothing in Rust. `Config` accepts any string, `pet_query` passes it
  *      through, the settings pill is generated from `STYLE_IDS`, and the pet
  *      resolves an unknown id back to `plat`. Touch Rust only to change the
@@ -48,34 +50,85 @@ import { mixHex } from '../bot/skins'
  *     as at 180 px, and on irregular silhouettes, not just the circle.
  */
 
-export type StyleId = 'plat' | 'argile'
+export type StyleId = 'plat' | 'argile' | 'peluche'
 
-export const STYLE_IDS: StyleId[] = ['plat', 'argile']
+export const STYLE_IDS: StyleId[] = ['plat', 'argile', 'peluche']
 
 export const DEFAULT_STYLE: StyleId = 'plat'
 
 export function isStyleId(value: string | null | undefined): value is StyleId {
-  return value === 'plat' || value === 'argile'
+  return value === 'plat' || value === 'argile' || value === 'peluche'
 }
 
-export interface ClayMaterial {
-  /** Facing the light, top-left. */
+/**
+ * A lit surface. Every field is a number or a colour, so the drawing code never
+ * learns a style's name — it just paints these.
+ */
+export interface Surface {
+  /** Facing the light. */
   light: string
   /** The pet's own colour, at the mid tone. */
   base: string
   /** Turning away from the light. */
   deep: string
+  /** Light position, in radius units (negative = up and left). */
+  lx: number
+  ly: number
+  /** How far the gradient reaches, in radii. Larger = softer falloff. */
+  reach: number
+  /** Where `base` takes over from `light`, as a fraction of `reach`. */
+  mid: number
+  /** Opacity of the lower-edge shade wash. */
+  shade: number
+  /** Peak opacity of the sheen; 0 is perfectly matte. */
+  gloss: number
+  /** Sheen size, in radii. A small one is a specular; a large one is a soft sheen. */
+  glossR: number
+  /** How deeply the eyes read as pressed into the surface, 0 to 1. */
+  eyeDepth: number
+  /** Orbits are dimmed to this while a surface is on, so they do not fight it. */
+  orbits: number
 }
 
-/**
- * The light comes from the top-left, the conventional read for a lit object and
- * the one that agrees with the stage's own gradient in the settings window.
- */
-export function clayMaterial(ink: string): ClayMaterial {
+export function surfaceFor(style: StyleId, ink: string): Surface | null {
+  if (style === 'argile') return clay(ink)
+  if (style === 'peluche') return plush(ink)
+  return null // `plat` draws no surface at all
+}
+
+/** Firm and cool-lit: the object is solid, with a clear terminator and a specular. */
+function clay(ink: string): Surface {
   return {
     light: mixHex(ink, '#ffffff', 0.5),
     base: ink,
-    deep: mixHex(ink, '#000000', 0.34)
+    deep: mixHex(ink, '#000000', 0.34),
+    lx: -0.3,
+    ly: -0.32,
+    reach: 1.5,
+    mid: 0.34,
+    shade: 0.22,
+    gloss: 0.55,
+    glossR: 0.26,
+    eyeDepth: 0.28,
+    orbits: 0.9
+  }
+}
+
+/** Warm and diffuse: a broad light, a big soft sheen, and a gentle edge. */
+function plush(ink: string): Surface {
+  return {
+    light: mixHex(ink, '#fff3e6', 0.3),
+    base: mixHex(ink, '#ffffff', 0.04),
+    deep: mixHex(ink, '#241a12', 0.15),
+    lx: -0.2,
+    ly: -0.28,
+    reach: 2,
+    mid: 0.45,
+    shade: 0.1,
+    gloss: 0.18,
+    glossR: 0.5,
+    eyeDepth: 0.12,
+    orbits: 0.85
   }
 }
 
@@ -84,6 +137,6 @@ export function clayMaterial(ink: string): ClayMaterial {
  * than the fill below it. Toward black rather than toward the ink, so the shadow
  * reads the same on a dark pet's light eyes and a light pet's dark ones.
  */
-export function clayEyeLid(eyeFill: string): string {
-  return mixHex(eyeFill, '#000000', 0.28)
+export function eyeShade(eyeFill: string, depth: number): string {
+  return depth <= 0 ? eyeFill : mixHex(eyeFill, '#000000', depth)
 }

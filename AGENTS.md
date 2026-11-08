@@ -89,16 +89,21 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 
 - **A style paints geometry; it never moves it.** The engine emits one frame; the
   style decides the fills. `src/pet/materials.ts` owns the definitions and the
-  checklist; `src/pet/PetFigure.vue` owns the drawing (a `clay` flag plus the
-  template branch). Definitions there, pixels there — keep the split, so a new
+  checklist; `src/pet/PetFigure.vue` owns the drawing. Keep the split, so a new
   style does not need a new component.
-- Two styles today: `plat` (default, one flat fill) and `argile` (lit). The id is a
-  **storage key** in `config.json`: add styles, never rename or reorder ids.
+- **A style is data.** `materials.ts` maps an id to a `Surface` — three tones, the
+  light position and reach, and the strength of the shade, sheen and eye recession.
+  `PetFigure.vue` paints any `Surface` it is handed, so a new style of this kind is
+  numbers, not a template branch; a branch is only owed for a new *kind of element*
+  (an outline, a second silhouette).
+- Three styles today: `plat` (default, one flat fill), `argile` (firm, glossy) and
+  `peluche` (warm, diffuse). The id is a **storage key** in `config.json`: add
+  styles, never rename or reorder ids.
 - **To add one, follow the checklist at the top of `src/pet/materials.ts`.** In
-  short: id + paint function in `materials.ts`, label in `src/display.ts`, branch in
-  `PetFigure.vue`, and **nothing in Rust**. The settings pill is generated from
-  `STYLE_IDS` and the pet validates with `isStyleId`, so neither needs editing.
-  Rust changes only if the *default* style does.
+  short: id + a `Surface` in `materials.ts`, label in `src/display.ts`, and
+  **nothing else** — not `PetFigure`, not Rust. The settings pill is generated from
+  `STYLE_IDS` and the pet validates with `isStyleId`. Rust changes only if the
+  *default* style does.
 - **`plat` must stay the default, and an unknown id must stay flat.** Config files
   written before the field existed have no `style` key; `#[serde(default)]` in Rust
   and `isStyleId` in the frontend are what keep them opening on the pet they were.

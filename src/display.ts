@@ -57,7 +57,8 @@ export const EXPRESSION_NAMES: Record<string, string> = {
 
 export const STYLE_NAMES: Record<string, string> = {
   plat: 'Flat',
-  argile: 'Clay'
+  argile: 'Clay',
+  peluche: 'Plush'
 }
 
 export function displayName(names: Record<string, string>, id: string): string {

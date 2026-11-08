@@ -97,6 +97,7 @@ instead of breaking the pet.
 |---|---|---|
 | `plat` | Flat | one flat fill — the default, and what the upstream demo does |
 | `argile` | Clay | a lit surface: a top-left highlight, a shaded lower edge, a specular, and eyes that read as pressed in |
+| `peluche` | Plush | the same light, warm and diffuse: a broad highlight, a big soft sheen, a gentle edge — a toy |
 
 Both spend the *same* geometry. The style changes no point the engine emits, only
 how the frame is painted. `plat` is the default precisely so that a `config.json`
@@ -104,22 +105,22 @@ written before styles existed still opens on the pet it always was — the field
 `#[serde(default)]` on the Rust side, and an unknown id resolves back to `plat`
 in `src/pet/materials.ts`.
 
-Clay derives everything from the one ink hex, so it works for all twelve colours
-including the near-black and near-white ends, and it is built from **fills and
-gradients only** — no SVG filters, which would cost a blur per element on every
-animation frame.
+A style is **data, not code**: `Surface` in `src/pet/materials.ts` is the whole
+vocabulary — three tones, where the light sits and how far it reaches, the strength
+of the shade, the sheen and the eye recession — and `PetFigure.vue` paints whatever
+`Surface` it is handed. Every colour is derived from the one ink hex, so all twelve
+colours work including the near-black and near-white ends, and a lit style is built
+from **fills and gradients only** — no SVG filters, which would cost a blur per
+element on every animation frame.
 
 ### Adding a style
 
-The definitions live in `src/pet/materials.ts`; the drawing lives in
-`src/pet/PetFigure.vue`. Adding one is a recipe, not an excavation:
-
-1. **`src/pet/materials.ts`** — add the id to `StyleId` and `STYLE_IDS`, and add a
-   paint function (`glassMaterial(ink)`) that returns the colours the drawing
-   needs, derived from the ink.
+1. **`src/pet/materials.ts`** — add the id to `StyleId` and `STYLE_IDS`, and return a
+   `Surface` from `surfaceFor`, deriving every colour from the ink.
 2. **`src/display.ts`** — add the English label to `STYLE_NAMES`.
-3. **`src/pet/PetFigure.vue`** — add a `computed` flag and the draw branch. This is
-   the only file that grows per style; everything else is shared.
+3. **Done.** `PetFigure.vue` paints any `Surface`. It needs a change only when a
+   style brings a *new kind of element* — an outline, a second silhouette, a tinted
+   orbit — rather than new numbers.
 4. **Rust — nothing.** `Config` accepts any string, `pet_query` passes it through,
    the settings pill is generated from `STYLE_IDS`, and the pet validates against
    `isStyleId`. Rust only changes if the *default* style changes.
