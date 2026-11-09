@@ -1,19 +1,23 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::time::Duration;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
-    AppHandle, Emitter, Manager, WebviewUrl, WebviewWindowBuilder, Window,
+    AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
 };
 
-const PET_LABEL: &str = "pet-1";
+pub mod engine;
+mod pet;
+pub mod render;
+
+use pet::{PetConfig, PetHandle};
+
 const PET_SIZE: f64 = 180.0;
 const CONFIG_FILE: &str = "config.json";
 
 /*
- * Rust owns what the pet looks like, not the frontend: `create_pet` runs in
- * `setup()`, before any webview exists that could be asked. The file is plain
+ * Rust owns what the pet looks like, not the frontend: the pet window is created
+ * in `setup()`, before any webview exists that could be asked. The file is plain
  * JSON in the app config directory, and its ids are the ones the frontend
  * catalogues use (`src/bot/skins.ts`, `src/bot/expressions.ts`).
  *
@@ -27,7 +31,7 @@ struct Config {
     shape: String,
     color: String,
     expression: String,
-    /// `plat` (the flat fill) or `argile` (lit). Unknown values read as `plat`.
+    /// `plat` (the flat fill), `argile` or `peluche`. Unknown values read flat.
     style: String,
 }
 
@@ -70,77 +74,6 @@ fn save_config(app: &AppHandle, config: &Config) -> Result<(), String> {
     std::fs::write(path, text).map_err(|e| e.to_string())
 }
 
-/// Ids are `[a-z]+` in practice. Anything else is dropped so that a hand-edited
-/// file cannot smuggle a second query parameter into the window URL.
-fn param(value: &str) -> String {
-    value
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
-        .collect()
-}
-
-fn pet_query(config: &Config) -> String {
-    format!(
-        "?window=pet&shape={}&color={}&expression={}&style={}",
-        param(&config.shape),
-        param(&config.color),
-        param(&config.expression),
-        param(&config.style)
-    )
-}
-
-/// Physical-pixel geometry handed to the pet window so it can turn the global
-/// cursor position into a look direction, and test the cursor against the
-/// painted silhouette.
-#[derive(Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-struct PetGeometry {
-    x: f64,
-    y: f64,
-    w: f64,
-    h: f64,
-    scale: f64,
-    mon_w: f64,
-    mon_h: f64,
-}
-
-#[tauri::command]
-fn pet_geometry(window: Window) -> Result<PetGeometry, String> {
-    let scale = window.scale_factor().map_err(|e| e.to_string())?;
-    let pos = window.outer_position().map_err(|e| e.to_string())?;
-    let size = window.outer_size().map_err(|e| e.to_string())?;
-    let monitor = window.current_monitor().map_err(|e| e.to_string())?;
-
-    let (mon_w, mon_h) = match monitor {
-        Some(m) => (m.size().width as f64, m.size().height as f64),
-        None => (1920.0, 1080.0),
-    };
-
-    Ok(PetGeometry {
-        x: pos.x as f64,
-        y: pos.y as f64,
-        w: size.width as f64,
-        h: size.height as f64,
-        scale,
-        mon_w,
-        mon_h,
-    })
-}
-
-/// A transparent window intercepts clicks over its whole rectangle. The webview
-/// decides per frame whether the cursor is on the pet and flips this.
-#[tauri::command]
-fn set_click_through(window: Window, through: bool) -> Result<(), String> {
-    window
-        .set_ignore_cursor_events(through)
-        .map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn start_drag(window: Window) -> Result<(), String> {
-    window.start_dragging().map_err(|e| e.to_string())
-}
-
 #[tauri::command]
 fn quit_app(app: AppHandle) {
     app.exit(0);
@@ -151,17 +84,19 @@ fn get_config(app: AppHandle) -> Config {
     load_config(&app)
 }
 
-/// Persist and apply in one step. The pet view reads its appearance from the
-/// query string, so re-opening it with the new parameters is all a change needs:
-/// setting `location.search` reloads the document in place, which leaves the
-/// window, its position and the engine's behaviour otherwise untouched.
+/// Persist and apply in one step. The pet is a native window now, so a change is
+/// handed to its thread and applied in place — no reload, no flash, no relayout.
 #[tauri::command]
 fn set_config(app: AppHandle, config: Config) -> Result<Config, String> {
     save_config(&app, &config)?;
 
-    if let Some(window) = app.get_webview_window(PET_LABEL) {
-        let query = serde_json::to_string(&pet_query(&config)).map_err(|e| e.to_string())?;
-        let _ = window.eval(format!("location.search = {query}"));
+    if let Some(pet) = app.try_state::<PetHandle>() {
+        pet.set(PetConfig::from_raw(
+            &config.shape,
+            &config.expression,
+            &config.color,
+            &config.style,
+        ));
     }
 
     Ok(config)
@@ -181,38 +116,6 @@ fn pet_anchor(app: &AppHandle) -> (f64, f64) {
         origin.x + size.width - PET_SIZE - 40.0,
         origin.y + size.height - PET_SIZE - 80.0,
     )
-}
-
-fn create_pet(app: &AppHandle) -> tauri::Result<()> {
-    if app.get_webview_window(PET_LABEL).is_some() {
-        return Ok(());
-    }
-
-    let config = load_config(app);
-    let (x, y) = pet_anchor(app);
-    let window = WebviewWindowBuilder::new(
-        app,
-        PET_LABEL,
-        WebviewUrl::App(format!("index.html{}", pet_query(&config)).into()),
-    )
-    .title("Dot")
-    .inner_size(PET_SIZE, PET_SIZE)
-    .position(x, y)
-    .transparent(true)
-    .decorations(false)
-    .always_on_top(true)
-    .skip_taskbar(true)
-    .shadow(false)
-    .resizable(false)
-    .maximizable(false)
-    .minimizable(false)
-    .focused(false)
-    .build()?;
-
-    // Start transparent to input: the webview turns interaction back on as soon
-    // as the cursor is over a painted pixel.
-    let _ = window.set_ignore_cursor_events(true);
-    Ok(())
 }
 
 fn open_settings(app: &AppHandle) -> tauri::Result<()> {
@@ -253,9 +156,8 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
             "settings" => {
                 let _ = open_settings(app);
             }
-            "add-pet" => {
-                let _ = create_pet(app);
-            }
+            // One native pet for now; the multi-pet list is a later phase.
+            "add-pet" => {}
             _ => {}
         })
         .build(app)?;
@@ -263,52 +165,36 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
-/// The engine is clock-free, but the pet still needs to know where the cursor is
-/// in screen space — something a web page can never see. A plain thread polls it
-/// and forwards only actual movement.
-fn start_cursor_poll(app: AppHandle) {
-    std::thread::spawn(move || {
-        let mut last: Option<(f64, f64)> = None;
-        loop {
-            std::thread::sleep(Duration::from_millis(33));
-
-            if app.get_webview_window(PET_LABEL).is_none() {
-                continue;
-            }
-
-            let Ok(pos) = app.cursor_position() else {
-                continue;
-            };
-
-            let moved = last
-                .map(|(x, y)| (x - pos.x).abs() > 0.5 || (y - pos.y).abs() > 0.5)
-                .unwrap_or(true);
-            if !moved {
-                continue;
-            }
-
-            last = Some((pos.x, pos.y));
-            let _ = app.emit("pet://cursor", (pos.x, pos.y));
-        }
-    });
-}
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![
-            pet_geometry,
-            set_click_through,
-            start_drag,
-            quit_app,
-            get_config,
-            set_config
-        ])
+        .invoke_handler(tauri::generate_handler![quit_app, get_config, set_config])
         .setup(|app| {
             let handle = app.handle().clone();
             build_tray(&handle)?;
-            create_pet(&handle)?;
-            start_cursor_poll(handle);
+
+            let config = load_config(&handle);
+            let (x, y) = pet_anchor(&handle);
+            let scale = handle
+                .primary_monitor()
+                .ok()
+                .flatten()
+                .map(|m| m.scale_factor())
+                .unwrap_or(1.0);
+            let size = (PET_SIZE * scale).round() as i32;
+            let pet = pet::spawn(
+                PetConfig::from_raw(
+                    &config.shape,
+                    &config.expression,
+                    &config.color,
+                    &config.style,
+                ),
+                (x * scale).round() as i32,
+                (y * scale).round() as i32,
+                size,
+                scale,
+            );
+            app.manage(pet);
             Ok(())
         })
         .run(tauri::generate_context!())
@@ -318,22 +204,12 @@ pub fn run() {
 /*
  * The config file is the app's only persistence, and it is hand-editable, so the
  * rules worth pinning are the ones a future field could break: an absent file or
- * field falls back rather than failing, an id we do not know is kept as-is for
- * the frontend to resolve, and nothing a hand-edited value contains can smuggle
- * a second query parameter into the pet's URL.
+ * field falls back rather than failing, and an id we do not know is kept as-is
+ * for the frontend to resolve.
  */
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn config(style: &str) -> Config {
-        Config {
-            shape: "cercle".into(),
-            color: "encre".into(),
-            expression: "neutre".into(),
-            style: style.into(),
-        }
-    }
 
     #[test]
     fn an_empty_file_gets_the_default_pet() {
@@ -358,27 +234,5 @@ mod tests {
     fn an_unknown_style_is_kept_for_the_frontend_to_resolve() {
         let config: Config = serde_json::from_str(r#"{"style":"glass"}"#).unwrap();
         assert_eq!(config.style, "glass");
-    }
-
-    #[test]
-    fn the_pet_query_carries_all_four_values() {
-        let mut config = config("argile");
-        config.shape = "galet".into();
-        config.color = "rouge".into();
-        config.expression = "fier".into();
-        assert_eq!(
-            pet_query(&config),
-            "?window=pet&shape=galet&color=rouge&expression=fier&style=argile"
-        );
-    }
-
-    #[test]
-    fn the_query_drops_anything_that_could_inject_a_parameter() {
-        let mut config = config("plat");
-        config.shape = "cercle&cloak=1".into();
-        assert_eq!(
-            pet_query(&config),
-            "?window=pet&shape=cerclecloak1&color=encre&expression=neutre&style=plat"
-        );
     }
 }

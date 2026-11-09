@@ -25,12 +25,18 @@ Everything later is verified by hand today. Fix that first.
 
 ## Phase 2 — Living with it (0.3.0)
 
-The window costs ~36 % of one core just to sit there at 60 fps, and the pet is
-meant to run all day.
+A visible WebView2 window costs about 13 % of a core before it draws anything, and
+the pet is meant to run all day.
 
-- [ ] **Cut the idle cost.** Reduce the frame rate when nothing is happening, or
-      pause `rAF` while the cursor is away and no emote is playing, and slow the
-      Rust cursor poll to match. Measure before and after.
+- [x] **Cut the idle cost.** The loop in `src/pet/PetView.vue` sleeps when nothing
+      is happening — no drag, no emote, cursor still — drawing at ~15 fps on a
+      timer instead of chaining `rAF`, waking to full rate on a cursor movement, a
+      drag or an emote, and stopping entirely while hidden (`IDLE_FRAME_MS`). The
+      click-through probe is skipped when neither the cursor nor the silhouette
+      moved. Measured, one idle window went from ~26 % of a core to ~14 %. It will
+      not go much lower while it is a WebView2 window: ~7 % of that is the GPU
+      process compositing the transparent window and ~5 % the renderer, both before
+      Dot draws anything. Phase 6 is about leaving that floor behind.
 - [ ] **Apply a config change in place** instead of reopening the pet window, so
       picking a colour does not flash the pet or reset its animation.
 - [ ] **Tune and re-verify click-through.** It is load-bearing and the current
@@ -66,6 +72,35 @@ The feature the README has never delivered.
       and the portable exe to a GitHub Release automatically.
 - [ ] **Decide the artwork licence.** The silhouettes imitate x.ai's avatar; fine
       for a personal pet, worth replacing before shipping commercially.
+
+## Phase 6 — A renderer with no browser
+
+Phase 2 measured the ceiling of the current design: ~13 % of one core and ~300 MB,
+almost all of it the WebView2 runtime rather than Dot. This phase removes it for
+the pet window, which is what "low resource" actually requires.
+
+- [x] **Spike done — the numbers justify the rewrite.** A software-rasterised blob
+      (`tiny-skia`) blitted to a transparent layered window measured **~0.5 % of a
+      core at 60 fps, ~0.08 % at 15 fps, in 6.3 MB across a single process** —
+      against the WebView2 pet's ~14 % and ~300 MB. The spike is a throwaway in the
+      temp directory, not in the tree.
+- [x] **Get the engine out of the browser.** Ported to `src-tauri/src/engine/`,
+      driven by `assets/engine-catalogue.json` — the measured tables, including the
+      `eyefit` solve, are dumped rather than retyped. A Rust integration test
+      replays 142 golden scripts generated from the TypeScript engine and matches
+      every frame, so the two cannot drift silently.
+- [x] **Native pet window is shipping.** `src-tauri/src/pet.rs` creates a
+      transparent, layered, always-on-top Win32 window on its own thread and paints
+      it with `src-tauri/src/render.rs` (tiny-skia, all three styles). It hit-tests
+      the silhouette to toggle click-through, starts an OS drag from the body, and
+      tracks the global cursor and emotes. One process, **no WebView2**: measured
+      **~1.1 % of one core and 14.6 MB at rest**, against ~14 % and ~324 MB before.
+      Config changes apply to the running pet in place.
+- [ ] **Keep the settings picker honest.** The preview still draws with Vue/SVG
+      from `src/bot/`; the desktop pet now draws the Rust port. The 142-frame parity
+      suite keeps the *frames* identical, and `materials.ts`/`render.rs` carry the
+      same style numbers, but the painting code is duplicated — a new style must be
+      added in both places until the preview is drawn natively too.
 
 ## Not planned
 

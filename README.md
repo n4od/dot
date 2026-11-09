@@ -1,14 +1,19 @@
 # Dot
 
-A desktop pet that lives in a transparent, frameless window: it turns its head
-towards your real cursor anywhere on the screen, emotes on its own, and lets
-clicks through wherever it is not painted.
+A desktop pet that lives in a transparent, frameless **native** window — a Win32
+layered window, not a browser — that turns its head towards your real cursor
+anywhere on the screen, emotes on its own, and lets clicks through wherever it is
+not painted.
 
 Built on the morph engine from [`jeremy-prt/bloub`](bloub) (MIT), pinned at
 commit [`b4bb3c1b5f93c7b87a2e8d620f667c4093d97749`](https://github.com/jeremy-prt/bloub/commit/b4bb3c1b5f93c7b87a2e8d620f667c4093d97749).
 `src/bot/` is a copy of that engine, plus its test suite: it is framework-free,
 DOM-free and clock-free, so `sample(t)` is a pure function of time. That is what
 lets the pet pause, resume and sleep without ever drifting out of pose.
+
+**How it got from a browser to a native window:** see
+[docs/native-renderer.md](docs/native-renderer.md) — the measurements, the parity
+contract, and the native layered window that replaced WebView2 for the pet.
 
 `bloub/` is a vendored snapshot of that commit, kept for its tests, its
 customiser and its docs. It is deliberately **not** a git repository — the
@@ -49,13 +54,15 @@ The tray icon is the only way to quit while the pet is on screen: **Quit**.
 
 | Window | Created in | Shape |
 |---|---|---|
-| `pet-1` | `src-tauri/src/lib.rs` | 180×180, transparent, undecorated, always on top, skipped from the taskbar |
-| `settings` | tray → Settings | 780×600, normal decorated window |
+| `pet-1` | `src-tauri/src/pet.rs` | 180×180 native Win32 **layered** window: transparent, undecorated, always on top, skipped from the taskbar |
+| `settings` | tray → Settings | 780×600, normal decorated Tauri webview |
 
-Both load the same `index.html` and pick a view from `?window=`.
+Only the settings window is a webview. The pet is drawn by the Rust engine and
+tiny-skia, so there is no browser process while it is alone on screen.
 
-For visual work there is also `?window=pet&state=orbit`: it opens straight into
-one state instead of the idle loop.
+For visual work there is also `?window=pet&state=orbit`: in a browser
+(`pnpm dev`) it opens straight into one state instead of the idle loop. The
+desktop pet itself is native and does not use that path.
 
 ## Configuring it
 
@@ -63,10 +70,11 @@ one state instead of the idle loop.
 blinking, and winking every so often — while shape, colour and expression are
 picked at the right. Every click applies to the pet on your desktop immediately.
 
-The pet on the stage is not an illustration. It is the same engine the desktop
-window runs, sampled on the same clock-free `sample(t)` and drawn by the same
-component (`src/pet/PetFigure.vue`), so the bench cannot promise something the
-pet will not do.
+The pet on the stage is not an illustration. It runs the TypeScript engine the
+desktop pet was ported from, and a 142-frame parity suite replays the same frames
+through the Rust engine, so the bench cannot promise something the pet will not do.
+(The preview still draws with `PetFigure.vue` while the desktop pet paints
+natively: a new *style* must be added in both `materials.ts` and `render.rs`.)
 
 Option names are English (`Circle`, `Ink`, `Sleepy`); the ids behind them stay
 French, because those are what the engine, its tests and the config file use.
@@ -81,11 +89,10 @@ The choice lives in one small JSON file:
 at `%APPDATA%\dev.dotscode.dot\config.json`. Delete it to go back to defaults
 (`cercle` / `encre` / `neutre` / `plat`).
 
-**Rust owns that file, not the frontend.** `create_pet` runs in `setup()`, before
-any webview exists to be asked what to draw, so the config has to be readable
-without one. The pet window is opened with the values as query parameters, and a
-change re-opens it with the new ones — which is why a colour applies without
-restarting anything. A missing, unreadable or half-written file is not an error:
+**Rust owns that file, not the frontend.** The native pet thread reads it at
+startup, before any webview exists, and `set_config` hands later changes to that
+thread, which morphs shape and expression and switches colour and style in place —
+no reload, no flash. A missing, unreadable or half-written file is not an error:
 unknown ids fall back to the catalogue defaults, so a hand-edited file degrades
 instead of breaking the pet.
 
@@ -104,6 +111,10 @@ how the frame is painted. `plat` is the default precisely so that a `config.json
 written before styles existed still opens on the pet it always was — the field is
 `#[serde(default)]` on the Rust side, and an unknown id resolves back to `plat`
 in `src/pet/materials.ts`.
+
+There are two painters today, sharing the `Surface` vocabulary: `materials.ts`
+for the settings preview and `src-tauri/src/render.rs` for the native pet. A new
+style must be added to both.
 
 A style is **data, not code**: `Surface` in `src/pet/materials.ts` is the whole
 vocabulary — three tones, where the light sits and how far it reaches, the strength
@@ -143,11 +154,10 @@ useless for a 180 px pet. A Rust thread polls `AppHandle::cursor_position()` eve
 into a look direction, normalised against the monitor so the gaze saturates at
 the screen edge rather than at the window edge.
 
-**Click-through.** A transparent window still swallows clicks over its whole
-rectangle. `set_ignore_cursor_events` is all-or-nothing per window, so the pet
-flips it based on a hit test: `elementFromPoint` against the painted shapes
-(`.hit`), probed at five points for hysteresis. Transparent corners pass clicks
-to the desktop; the body takes them.
+**Click-through.** A layered window still swallows clicks over its whole
+rectangle, so `WS_EX_TRANSPARENT` is toggled from a point-in-polygon test against
+the current silhouette, probed at five points for hysteresis. Transparent corners
+pass clicks to the desktop; the body takes them.
 
 **Eyes.** The original demo draws the eyes as holes in a mask so they reveal the
 page colour. A transparent window has no page colour — a hole would show the
@@ -163,8 +173,10 @@ opaque and everything behind it is genuinely behind it.
 
 The plan is [ROADMAP.md](ROADMAP.md). In short:
 
-- **Cost**: the pet window runs at 60 fps whenever it is visible, about 36 % of one
-  core. Cutting that when nothing is happening is the next thing worth doing.
+- **Cost**: the native pet is a single Win32 process painted with tiny-skia, and
+  measured **~1.1 % of one core and 14.6 MB** at rest — down from ~14 % and ~324 MB
+  when it was a WebView2 window. It draws at ~15 fps while resting and ~60 while
+  dragged, emoting or looked at.
 - **More than one pet**: the tray's *Add a pet* currently re-focuses `pet-1`, and the
   config file describes a single appearance. Both need to become a list keyed by
   window label (`pet-2`, `pet-3`, ...).

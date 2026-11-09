@@ -9,6 +9,25 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **The pet no longer runs in a browser.** It is a native Win32 layered window
+  (`src-tauri/src/pet.rs`) painted with tiny-skia (`src-tauri/src/render.rs`) from
+  the Rust engine, with the same click-through, drag, cursor gaze, emotes and all
+  three styles. Measured on one idle pet: **~1.1 % of one core and 14.6 MB**, with
+  zero WebView2 processes — down from ~14 % and ~324 MB. Settings changes apply to
+  the running pet in place. The settings window remains a webview and still draws
+  its preview from the TypeScript engine; the 142-frame parity suite keeps the two
+  engines equal.
+
+- **The animation engine now exists in Rust**, ported from `src/bot/` into
+  `src-tauri/src/engine/` — the first step of the native renderer that will let the
+  pet drop WebView2. It is not on screen yet; the app still draws with Vue. A
+  contract keeps the two honest: `tools/golden/dump.ts` generates 142 golden frames
+  from the TypeScript engine, and `src-tauri/tests/engine_parity.rs` replays them
+  and matches every field, with the path and matrix strings coming out
+  byte-for-byte identical. Static data — radial profiles, shapes, expressions,
+  orbit seeds, blink schedule, and the measured `eyefit` table — ships as
+  `src-tauri/assets/engine-catalogue.json` so none of it is retyped by hand.
+
 - **`.github/workflows/ci.yml`**: the web job typechecks, builds and tests on Linux;
   the Rust job runs `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test`
   on Windows. A broken typecheck or a blank-window regression no longer has to be
@@ -29,6 +48,21 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - **Rust formatting is enforced and clippy is clean under `-D warnings`**, so both
   new CI checks start from a green baseline rather than a backlog.
+
+- **The pet sleeps instead of redrawing.** Once nothing is happening — not
+  dragged, no emote, and the cursor still for a moment — the loop in
+  `src/pet/PetView.vue` draws at ~15 fps and schedules the next frame with a timer
+  instead of a `requestAnimationFrame`, so the browser is no longer woken 60 times
+  a second to do nothing. A cursor movement, a drag or an emote puts it straight
+  back on `rAF`, and a hidden window stops the loop entirely. The per-frame
+  click-through probe is skipped on frames where neither the cursor nor the
+  silhouette moved, since its answer cannot have changed.
+
+  Measured with one idle pet, this took ~26 % of one core down to ~14 % (a 45 %
+  cut; the earlier frame-rate cap alone had reached ~19 %). It cannot go much
+  lower: a visible WebView2 window costs ~13 % of a core before it draws anything —
+  ~7 % in the GPU process compositing the transparent, always-on-top window and
+  ~5 % in the renderer — and that floor is the runtime, not Dot.
 
 ## [0.2.0] — 2026-11-09
 

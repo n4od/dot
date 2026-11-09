@@ -1,7 +1,10 @@
 # AGENTS.md
 
-Dot is a desktop pet: a Tauri v2 shell (Rust) around a Vue 3 + Vite 8 frontend on
-Windows. One transparent, frameless, always-on-top window per pet.
+Dot is a desktop pet on Windows. The pet itself is a **native** transparent,
+frameless, always-on-top Win32 layered window (`src-tauri/src/pet.rs`), driven by a
+Rust port of the animation engine and painted with tiny-skia. A Tauri v2 shell
+around a Vue 3 + Vite 8 frontend remains for the tray, the settings window and
+`config.json`; WebView2 is only created while Settings is open.
 
 ## Before you start
 
@@ -31,12 +34,15 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   tests. Vitest runs with `globals: false`, so every test imports
   `{ describe, expect, it }` from `vitest` explicitly.
 - **The Rust side is tested too**: `cargo test --manifest-path src-tauri` runs the
-  config serde tests in `src-tauri/src/lib.rs`. CI (`.github/workflows/ci.yml`)
-  runs both sides, plus `cargo fmt --check` and `cargo clippy -D warnings`.
+  config serde tests and the **142 engine-parity cases** in
+  `src-tauri/tests/engine_parity.rs`. CI (`.github/workflows/ci.yml`) runs both
+  sides, plus `cargo fmt --check` and `cargo clippy -D warnings`.
 - `pnpm build` typechecks the test files too (tsconfig includes `src/**/*.ts`), so a
   type error in a test fails the build, not just the tests.
 - Browser iteration: `http://localhost:1421/?window=pet&state=orbit`. `?shape=`,
-  `?color=`, `?expression=` and `?style=` are also read from the URL.
+  `?color=`, `?expression=` and `?style=` are also read from the URL. This is the
+  **browser** pet view for visual work; the desktop pet is native and does not use
+  it.
 
 ## Build traps
 
@@ -52,36 +58,45 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 
 ## Wiring
 
-- `src/main.ts` chooses the view from `?window=` (default `pet`). A new window type
-  needs a branch there **and** a builder in `src-tauri/src/lib.rs`, **and** a block
-  in `src/styles.css`.
-- `src-tauri/src/lib.rs` owns window creation, the tray, and six plain commands:
-  `pet_geometry`, `set_click_through`, `start_drag`, `quit_app`, `get_config`,
-  `set_config`. They are not a plugin, so `capabilities/default.json` only needs
+- **The desktop pet is not a webview.** `src-tauri/src/pet.rs` owns a Win32
+  layered window on its own thread: creation, message loop, cursor poll,
+  click-through, drag, emotes and in-place config updates.
+  `src-tauri/src/render.rs` paints frames with tiny-skia. `src-tauri/src/lib.rs`
+  keeps the tray, `config.json` and the settings window and exposes three commands:
+  `quit_app`, `get_config`, `set_config`. `capabilities/default.json` only needs
   `core:default`.
-- **Rust owns the pet's appearance** (`config.json` in the app config dir), because
-  `create_pet` runs in `setup()` before any webview exists. The values — shape,
-  colour, expression and style — travel to the pet as query parameters, and
-  `set_config` re-opens the window at the same place to apply them. Don't move that
-  state into the frontend — Rust would have nothing to draw with at startup.
-  `Config` is `#[serde(default)]`, so a file written before a field existed still
-  loads; add new fields with a default, never make one required.
-- Window labels are hardcoded (`pet-1`, `settings`); "Add a pet" currently just
-  re-focuses `pet-1`.
+- `src/main.ts` and `src/styles.css` now serve the **settings** window in the app.
+  `?window=pet` remains for browser iteration only; it is not what runs on the
+  desktop. A new webview window type still needs a branch in `main.ts`, a builder in
+  `lib.rs`, and a block in `styles.css`.
+- **Rust owns the pet's appearance.** `Config` is `#[serde(default)]`: a file
+  written before a field existed still loads, so add new fields with a default,
+  never make one required. The pet thread reads it at startup, and `set_config`
+  hands later changes to it, applied in place. Don't move this state into the
+  frontend.
+- Window labels are hardcoded (`settings` only, now); "Add a pet" is a no-op until
+  the multi-pet list lands.
 - `src/bot/` is a frozen copy of `jeremy-prt/bloub` @ `b4bb3c1` (MIT), tests
   included. `bloub/` is a reference snapshot that is gitignored and excluded from
   Vite's watcher — **editing it changes nothing**, including its copy of the test
   suite, which is never run. Re-copy files by hand if upstream is updated.
+- **The engine exists twice on purpose, joined by a contract.** `src/bot/` is the
+  frozen TypeScript original; `src-tauri/src/engine/` is the Rust port the native
+  pet uses. Neither edits the other. `tools/golden/dump.ts` regenerates the
+  golden frames and the catalogue
+  (`pnpm exec vitest run --config vitest.golden.config.ts`); `cargo test` replays
+  them in `src-tauri/tests/engine_parity.rs`. Change one engine and the parity test
+  fails until the other follows — that is the point, do not weaken it to make a
+  change pass.
 - `src/bot/engine.ts` is clock-free: `sample(now)` is pure with `now` in seconds, and
   `reset`/`setState`/`setLook` all take a clock time. Never read `Date.now()` inside
   the engine — the pet relies on pausing and resuming without drifting out of pose.
-- **`src/pet/PetFigure.vue` draws every pet in the app** — the desktop window and the
-  settings stage both use it. Do not fork the template: the picker is only honest
-  because it is the same drawing. Its `interactive` prop is what puts `.hit` on the
-  body and the eyes; without it the figure is inert. `zoom` and `bare` exist for the
-  picker's expression thumbnails: they crop the viewBox to the body and drop the
-  orbits, particles and badge. Its `styleId` prop selects the paint — see **Styles**
-  below.
+- **`src/pet/PetFigure.vue` is the settings preview** (and the browser dev view). The
+  desktop pet paints natively in `render.rs`, so the preview is no longer literally
+  the same drawing; the parity suite and the mirrored `Surface` tables are what keep
+  them honest. Its `interactive` prop puts `.hit` on the body and eyes for the
+  browser view; `zoom` and `bare` crop the expression thumbnails; `styleId` selects
+  the paint — see **Styles** below.
 - `src/display.ts` maps the engine's French ids to English labels for the interface.
   **The ids are storage keys** (`config.json`, the upstream tests); rename a label,
   never an id.
@@ -92,56 +107,56 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 ## Styles (how the pet is painted)
 
 - **A style paints geometry; it never moves it.** The engine emits one frame; the
-  style decides the fills. `src/pet/materials.ts` owns the definitions and the
-  checklist; `src/pet/PetFigure.vue` owns the drawing. Keep the split, so a new
-  style does not need a new component.
+  style decides the fills. `src/pet/materials.ts` owns the preview definitions and
+  the checklist; `src-tauri/src/render.rs` owns the native paint. Keep the split.
 - **A style is data.** `materials.ts` maps an id to a `Surface` — three tones, the
   light position and reach, and the strength of the shade, sheen and eye recession.
-  `PetFigure.vue` paints any `Surface` it is handed, so a new style of this kind is
-  numbers, not a template branch; a branch is only owed for a new *kind of element*
-  (an outline, a second silhouette).
+  Both painters consume that vocabulary, so a new style of this kind is numbers, not
+  a template branch; a branch is only owed for a new *kind of element*.
 - Three styles today: `plat` (default, one flat fill), `argile` (firm, glossy) and
   `peluche` (warm, diffuse). The id is a **storage key** in `config.json`: add
   styles, never rename or reorder ids.
-- **To add one, follow the checklist at the top of `src/pet/materials.ts`.** In
-  short: id + a `Surface` in `materials.ts`, label in `src/display.ts`, and
-  **nothing else** — not `PetFigure`, not Rust. The settings pill is generated from
-  `STYLE_IDS` and the pet validates with `isStyleId`. Rust changes only if the
-  *default* style does.
+- **To add one:** id + a `Surface` in `materials.ts`, the same numbers in
+  `render.rs`'s `surface_for`, and the label in `src/display.ts`. The settings pill
+  is generated from `STYLE_IDS`; the preview validates with `isStyleId`. The default
+  lives in Rust only.
 - **`plat` must stay the default, and an unknown id must stay flat.** Config files
   written before the field existed have no `style` key; `#[serde(default)]` in Rust
-  and `isStyleId` in the frontend are what keep them opening on the pet they were.
-- **A style is bounded by the desktop window**: fills and gradients only (a
-  per-frame SVG filter multiplies per element), no opaque backdrop, `.hit` on the
-  body path and the eye group, eyes filled with `src/contrast.ts`'s colour, derived
-  from the ink hex so all twelve colours work, and legible at 42 px (`bare` + `zoom`
-  thumbnails) as well as 180 px, on irregular silhouettes too.
+  and `isStyleId`/`surface_for` are what keep them opening on the pet they were.
+- **A style is bounded by the desktop window**: fills and gradients only, no opaque
+  backdrop, eyes filled with the contrast colour (mirrored in `render.rs`), and
+  legible at 42 px as well as 180 px, on irregular silhouettes too.
 
 ## Rendering constraints that look like style choices
 
-- **`src/styles.css` is shared by both windows and gates its rules on
-  `html[data-window=...]`**, set by `main.ts` from `?window=`. The pet block makes
-  the document transparent and non-interactive; the settings block makes it an
-  ordinary scrolling document. A rule written unscoped leaks into the other window —
-  that is how `#app svg { width: 100% }` silently overrode the picker's own sizes
-  and how `overflow: hidden` made the picker unscrollable.
-- Transparency depends on the pet block keeping `html`, `body` and `#app`
-  transparent. Any opaque background there turns the window into a white square.
-- Eyes are **filled and clipped** to the body path, not punched out as mask holes,
-  and there is no paper backing disc. Both deliberately differ from the upstream
-  demo: on a transparent window a hole shows the wallpaper and the orbit rings
-  drawn behind the body. `src/contrast.ts` holds the eye fill, shared with the
-  settings preview so the picker cannot misrepresent the pet.
-- `class="hit"` is load-bearing. The click-through test is
+- **`src/styles.css` is the settings document** (and the browser pet view), gated on
+  `html[data-window=...]` set by `main.ts`. The settings block is an ordinary
+  scrolling document; the browser `pet` block makes it transparent and
+  non-interactive. The desktop pet has no document at all.
+- **The native window is transparent because it is a layered window** painted with
+  per-pixel alpha via `UpdateLayeredWindow`. It has no background brush and no page.
+- Eyes are **filled and clipped** to the body, not punched out as holes, and there is
+  no paper backing disc — on a transparent window a hole shows the wallpaper and the
+  orbits behind the body. `src/contrast.ts` holds the preview's eye fill;
+  `src-tauri/src/render.rs` mirrors it for the native pet.
+- **In the browser view**, `class="hit"` is load-bearing: the click-through test is
   `elementFromPoint(…).closest('.hit')`; renaming or dropping those classes silently
   makes the pet unclickable. They come from `PetFigure`'s `interactive` prop.
-- The pet window starts with `set_ignore_cursor_events(true)`. If the per-frame hit
-  test stops flipping it, the pet is visible but invisible to the mouse.
+- The native window starts with `WS_EX_TRANSPARENT` and flips it from
+  `render::body_contains` on `frame.body_points` (five probes). If that stops
+  happening the pet is visible but invisible to the mouse.
+- **The native frame loop sleeps at the draw cadence** (`BUSY_MS`/`IDLE_MS` in
+  `src-tauri/src/pet.rs`): ~60 fps while dragged, emoting or freshly woken, ~15 fps
+  at rest, and it only takes the config lock when the version counter moves. The
+  browser view (`PetView.vue`) has its own idle sleep, but it is not the desktop pet.
 
 ## Bookkeeping
 
 - `ROADMAP.md` is the plan and `CHANGELOG.md` is what shipped. Tick a roadmap item
   when it lands; the two must not disagree.
+- `docs/native-renderer.md` is the engineering case study for the native renderer:
+  the measurements, the decision, the parity contract and the loop fixes. If you
+  re-measure, keep its numbers honest.
 
 - The version lives in three places that must agree: `package.json`,
   `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`. Bump all three and add a

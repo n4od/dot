@@ -71,6 +71,40 @@ let clock = 0
 let last = 0
 let raf = 0
 
+/* ------------------------------------------------------------ frame budget */
+
+/**
+ * The pet has two costs and they are not equal: drawing is cheap, keeping a
+ * browser window awake is not. Measured with one idle pet, the WebView2 process
+ * tree costs ~13 % of a core *before it draws anything* — a `requestAnimationFrame`
+ * ticking at 60 Hz, the transparent always-on-top window being composited — and
+ * our own sampling and patching adds a few points on top.
+ *
+ * So the loop does not chain `rAF` while it rests. Once nothing is happening —
+ * not dragged, no emote, the cursor still for a moment — it draws every
+ * `IDLE_FRAME_MS` and schedules the *next* frame with a timer instead of a vsync
+ * callback, so the browser is not woken 60 times a second to do nothing. A cursor
+ * movement or an emote puts it straight back on `rAF`, where smooth gaze and
+ * animation live.
+ *
+ * None of this costs timing: the engine is clock-free, so `sample(clock)` reads
+ * the wall clock however the frames arrive.
+ */
+/** ~15 fps while resting. 66 ms is a chosen floor: below it the breathing steps. */
+const IDLE_FRAME_MS = 66
+/** How long after the last cursor movement the pet stays at the full rate. */
+const WAKE_MS = 900
+
+let wakeUntil = 0
+let lastDraw = 0
+/** True while the pet is dragged, emoting or freshly woken: full rate. */
+let busy = false
+/** The idle `setTimeout`, when the loop is resting instead of on `rAF`. */
+let timer = 0
+/** Where the cursor was the last time the click-through test ran. */
+let hitAtX = NaN
+let hitAtY = NaN
+
 /* ---------------------------------------------------------------- cursor */
 
 interface Geometry {
@@ -203,7 +237,8 @@ function playEmote(id: StateId) {
 }
 
 function tick(ms: number) {
-  raf = requestAnimationFrame(tick)
+  raf = 0
+  timer = 0
 
   // Bounded delta: a suspended window resumes where it left off instead of
   // jumping forward by however long the machine was asleep.
@@ -219,6 +254,13 @@ function tick(ms: number) {
   } else if (clock >= nextEmoteAt) {
     playEmote(EMOTES[(Math.random() * EMOTES.length) | 0]!)
   }
+
+  busy = dragging || emoteEndsAt !== 0 || ms < wakeUntil
+  if (!busy && ms - lastDraw < IDLE_FRAME_MS) {
+    schedule()
+    return
+  }
+  lastDraw = ms
 
   updateLook()
 
@@ -236,7 +278,39 @@ function tick(ms: number) {
   frame.value = engine.sample(clock)
   triggerRef(frame)
 
-  updateHitTest()
+  /*
+   * Five `elementFromPoint` probes answer a question whose answer cannot change
+   * while neither the cursor nor the silhouette moves: re-test only after a move,
+   * or while an emote or a drag is changing the shape under the pointer.
+   */
+  if (busy || (cursor && (cursor.x !== hitAtX || cursor.y !== hitAtY))) {
+    hitAtX = cursor?.x ?? NaN
+    hitAtY = cursor?.y ?? NaN
+    updateHitTest()
+  }
+
+  schedule()
+}
+
+/**
+ * Queue the next frame: on `rAF` while the pet has something to do, on a timer
+ * while it rests, and not at all while the window is hidden. `busy` is the flag
+ * the frame just computed.
+ */
+function schedule() {
+  if (document.hidden) return
+  if (busy) raf = requestAnimationFrame(tick)
+  else timer = window.setTimeout(() => tick(performance.now()), IDLE_FRAME_MS)
+}
+
+/** Resume at once — a moving cursor or a reappearing window must not wait a beat. */
+function wake() {
+  if (document.hidden) return
+  if (timer) {
+    window.clearTimeout(timer)
+    timer = 0
+  }
+  if (!raf) raf = requestAnimationFrame(tick)
 }
 
 /* ------------------------------------------------------------------ wiring */
@@ -249,6 +323,22 @@ async function refreshGeometry() {
     geometry = await invoke<Geometry>('pet_geometry')
   } catch {
     geometry = null
+  }
+}
+
+/** A hidden window is not composited, so the loop stops until it is shown again. */
+function onVisibility() {
+  if (document.hidden) {
+    if (timer) {
+      window.clearTimeout(timer)
+      timer = 0
+    }
+    if (raf) {
+      cancelAnimationFrame(raf)
+      raf = 0
+    }
+  } else {
+    wake()
   }
 }
 
@@ -265,6 +355,7 @@ onMounted(async () => {
   window.addEventListener('pointerup', onPointerUp)
   window.addEventListener('pointercancel', onPointerUp)
   window.addEventListener('blur', onPointerUp)
+  document.addEventListener('visibilitychange', onVisibility)
 
   // Guarded so `pnpm dev` also works in a plain browser for visual iteration:
   // there is no Tauri runtime there, only the animation.
@@ -272,6 +363,9 @@ onMounted(async () => {
     unlisten = await listen<[number, number]>('pet://cursor', (event) => {
       const [x, y] = event.payload
       cursor = { x, y }
+      // A moving cursor needs the full frame rate for a smooth gaze.
+      wakeUntil = performance.now() + WAKE_MS
+      wake()
     })
   } catch {
     unlisten = null
@@ -282,10 +376,12 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(raf)
+  window.clearTimeout(timer)
   window.clearInterval(geoPoll)
   window.removeEventListener('pointerup', onPointerUp)
   window.removeEventListener('pointercancel', onPointerUp)
   window.removeEventListener('blur', onPointerUp)
+  document.removeEventListener('visibilitychange', onVisibility)
   unlisten?.()
 })
 
