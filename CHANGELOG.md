@@ -7,6 +7,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-11-09
+
 ### Added
 
 - **The pet no longer runs in a browser.** It is a native Win32 layered window
@@ -19,14 +21,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   engines equal.
 
 - **The animation engine now exists in Rust**, ported from `src/bot/` into
-  `src-tauri/src/engine/` — the first step of the native renderer that will let the
-  pet drop WebView2. It is not on screen yet; the app still draws with Vue. A
-  contract keeps the two honest: `tools/golden/dump.ts` generates 142 golden frames
-  from the TypeScript engine, and `src-tauri/tests/engine_parity.rs` replays them
-  and matches every field, with the path and matrix strings coming out
-  byte-for-byte identical. Static data — radial profiles, shapes, expressions,
-  orbit seeds, blink schedule, and the measured `eyefit` table — ships as
-  `src-tauri/assets/engine-catalogue.json` so none of it is retyped by hand.
+  `src-tauri/src/engine/` and driving the native pet. A contract keeps the two
+  honest: `tools/golden/dump.ts` generates 142 golden frames from the TypeScript
+  engine, and `src-tauri/tests/engine_parity.rs` replays them and matches every
+  field, with the path and matrix strings coming out byte-for-byte identical.
+  Static data — radial profiles, shapes, expressions, orbit seeds, blink schedule,
+  and the measured `eyefit` table — ships as `src-tauri/assets/engine-catalogue.json`
+  so none of it is retyped by hand.
 
 - **`.github/workflows/ci.yml`**: the web job typechecks, builds and tests on Linux;
   the Rust job runs `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test`
@@ -39,7 +40,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   catalogue id has a label and that no label outlives its id; `materials.test.ts`
   treats the style ids as the storage keys they are; and `engine.test.ts` pins
   `LOOK_MORPH` from outside the frozen fork, which the upstream suite cannot. That
-  is 109 tests in 10 files, plus five Rust tests for the config file.
+  is 109 tests in 10 files, plus 3 Rust config tests and the 142-case engine
+  parity suite.
 
 - **`ROADMAP.md`**, the plan in phases — safety net, living with it, more than one
   pet, platform, distribution — with the phase-1 items ticked.
@@ -49,20 +51,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Rust formatting is enforced and clippy is clean under `-D warnings`**, so both
   new CI checks start from a green baseline rather than a backlog.
 
-- **The pet sleeps instead of redrawing.** Once nothing is happening — not
-  dragged, no emote, and the cursor still for a moment — the loop in
-  `src/pet/PetView.vue` draws at ~15 fps and schedules the next frame with a timer
-  instead of a `requestAnimationFrame`, so the browser is no longer woken 60 times
-  a second to do nothing. A cursor movement, a drag or an emote puts it straight
-  back on `rAF`, and a hidden window stops the loop entirely. The per-frame
-  click-through probe is skipped on frames where neither the cursor nor the
-  silhouette moved, since its answer cannot have changed.
-
-  Measured with one idle pet, this took ~26 % of one core down to ~14 % (a 45 %
-  cut; the earlier frame-rate cap alone had reached ~19 %). It cannot go much
-  lower: a visible WebView2 window costs ~13 % of a core before it draws anything —
-  ~7 % in the GPU process compositing the transparent, always-on-top window and
-  ~5 % in the renderer — and that floor is the runtime, not Dot.
+- **The browser pet view sleeps instead of redrawing.** In `?window=pet` (visual
+  work only; the desktop pet is native), once nothing is happening the loop draws at
+  ~15 fps on a timer instead of chaining a `requestAnimationFrame`, waking to 60 on
+  a cursor movement, drag or emote, and stopping while hidden. The click-through
+  probe is skipped when neither the cursor nor the silhouette moved.
 
 ## [0.2.0] — 2026-11-09
 

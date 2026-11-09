@@ -13,7 +13,7 @@ the drawing — is what made the result possible.
 
 | | WebView2 pet | native pet |
 |---|---|---|
-| idle CPU | ~14 % of one core | **~1.09 %** |
+| idle CPU | ~14 % of one core | **~1 % (0.7–1.6 % across runs)** |
 | memory | 324 MB working / 137 MB private | **14.6 MB / 3.3 MB** |
 | processes | 7 | **1** |
 | WebView2 processes | 6 | **0** |
@@ -249,9 +249,11 @@ when it draws:
 - config applied only when the atomic version counter changes,
 - window rect, gaze and `set_look` inside the draw branch.
 
-**2.55 % → 1.09 %.** The remaining cost is mostly the real painting (gradients and
+**2.55 % → ~1.1 %.** The remaining cost is mostly the real painting (gradients and
 six stroked orbit arcs at 15 fps) plus the cursor poll. That is a reasonable place
-to stop.
+to stop. Repeated 60–120 s runs land between 0.7 % and 1.6 %, because an emote runs
+at 60 fps for a couple of seconds and the machine's background load moves; the
+figure is a range, not a constant.
 
 ---
 
@@ -261,7 +263,7 @@ One idle pet, release build, 40 s window, no other load:
 
 | | WebView2 (start) | native (now) |
 |---|---|---|
-| CPU | ~14 % of one core | **1.09 %** |
+| CPU | ~14 % of one core | **~1.1 %** (0.7–1.6 % across repeated runs) |
 | working set | 324 MB | **14.6 MB** |
 | private | 137 MB | **3.3 MB** |
 | processes | 7 | **1** |
