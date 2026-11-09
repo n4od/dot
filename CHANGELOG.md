@@ -7,6 +7,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **Closing Settings no longer closes the pet.** Tauri exits when its last window
+  closes, and `AppHandle::exit` reports the same `ExitRequested` event; the pet is a
+  native Win32 window, not a Tauri one. The app now prevents that exit unless Quit
+  was chosen explicitly. The Settings webview is still destroyed, and its processes
+  freed, on close.
+
 ## [0.3.0] — 2026-11-09
 
 ### Added

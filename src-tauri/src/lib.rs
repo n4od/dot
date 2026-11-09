@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{
     menu::{Menu, MenuItem},
     tray::TrayIconBuilder,
@@ -74,9 +75,19 @@ fn save_config(app: &AppHandle, config: &Config) -> Result<(), String> {
     std::fs::write(path, text).map_err(|e| e.to_string())
 }
 
+/// Tauri exits when its last window closes, and `AppHandle::exit` reports the
+/// same `ExitRequested` event. This flag is what tells an explicit Quit from the
+/// settings window merely being closed — closing Settings must not stop the pet.
+static QUITTING: AtomicBool = AtomicBool::new(false);
+
+fn request_quit(app: &AppHandle) {
+    QUITTING.store(true, Ordering::SeqCst);
+    app.exit(0);
+}
+
 #[tauri::command]
 fn quit_app(app: AppHandle) {
-    app.exit(0);
+    request_quit(&app);
 }
 
 #[tauri::command]
@@ -152,7 +163,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(|app, event| match event.id().as_ref() {
-            "quit" => app.exit(0),
+            "quit" => request_quit(app),
             "settings" => {
                 let _ = open_settings(app);
             }
@@ -167,7 +178,7 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    tauri::Builder::default()
+    let app = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![quit_app, get_config, set_config])
         .setup(|app| {
             let handle = app.handle().clone();
@@ -197,8 +208,18 @@ pub fn run() {
             app.manage(pet);
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while running Dot");
+        .build(tauri::generate_context!())
+        .expect("error while building Dot");
+
+    app.run(|_app, event| {
+        if let tauri::RunEvent::ExitRequested { api, .. } = event {
+            // Settings is the only Tauri window. Closing it must not take the
+            // native pet down; only an explicit Quit sets QUITTING.
+            if !QUITTING.load(Ordering::SeqCst) {
+                api.prevent_exit();
+            }
+        }
+    });
 }
 
 /*

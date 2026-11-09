@@ -74,6 +74,11 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   never make one required. The pet thread reads it at startup, and `set_config`
   hands later changes to it, applied in place. Don't move this state into the
   frontend.
+- **Closing Settings must not close the pet.** Tauri exits when its last window
+  closes, and `AppHandle::exit` reports the same `ExitRequested` event. `lib.rs`
+  keeps a `QUITTING` flag and calls `api.prevent_exit()` unless an explicit Quit
+  set it. Without that, destroying the Settings webview takes the native pet down
+  with it — the pet is not a Tauri window.
 - Window labels are hardcoded (`settings` only, now); "Add a pet" is a no-op until
   the multi-pet list lands.
 - `src/bot/` is a frozen copy of `jeremy-prt/bloub` @ `b4bb3c1` (MIT), tests
