@@ -96,11 +96,12 @@ the pet window, which is what "low resource" actually requires.
       tracks the global cursor and emotes. One process, **no WebView2**: measured
       **~1.1 % of one core and 14.6 MB at rest**, against ~14 % and ~324 MB before.
       Config changes apply to the running pet in place.
-- [ ] **Keep the settings picker honest.** The preview still draws with Vue/SVG
-      from `src/bot/`; the desktop pet now draws the Rust port. The 142-frame parity
-      suite keeps the *frames* identical, and `materials.ts`/`render.rs` carry the
-      same style numbers, but the painting code is duplicated — a new style must be
-      added in both places until the preview is drawn natively too.
+- [x] **Keep the settings picker honest.** The preview now gets its frames from
+      the Rust engine through `preview_frame` — the same engine the desktop pet
+      runs — and paints them with the same SVG `PetFigure`. Styles are defined
+      once, in `materials.ts`'s `SURFACE_RULES`; the catalogue generator copies them
+      into `engine-catalogue.json`, which `render.rs` reads. A new style is a rule,
+      a label, and a regenerate.
 
 ## Not planned
 

@@ -3202,5 +3202,50 @@
         "y": 0
       }
     }
+  },
+  "surfaces": {
+    "argile": {
+      "light": {
+        "to": "#ffffff",
+        "t": 0.5
+      },
+      "base": null,
+      "deep": {
+        "to": "#000000",
+        "t": 0.34
+      },
+      "lx": -0.3,
+      "ly": -0.32,
+      "reach": 1.5,
+      "mid": 0.34,
+      "shade": 0.22,
+      "gloss": 0.55,
+      "glossR": 0.26,
+      "eyeDepth": 0.28,
+      "orbits": 0.9
+    },
+    "peluche": {
+      "light": {
+        "to": "#fff3e6",
+        "t": 0.3
+      },
+      "base": {
+        "to": "#ffffff",
+        "t": 0.04
+      },
+      "deep": {
+        "to": "#241a12",
+        "t": 0.15
+      },
+      "lx": -0.2,
+      "ly": -0.28,
+      "reach": 2,
+      "mid": 0.45,
+      "shade": 0.1,
+      "gloss": 0.18,
+      "glossR": 0.5,
+      "eyeDepth": 0.12,
+      "orbits": 0.85
+    }
   }
 }

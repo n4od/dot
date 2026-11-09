@@ -17,7 +17,7 @@ pub use shape::Point;
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use decor::{arc_render, ArcSpec};
 pub use decor::{ArcRender, DotRender};
@@ -177,6 +177,32 @@ pub struct NotifDef {
     pub blue: String,
 }
 
+/// One tint of a lit style: `to` mixed into the ink by `t`.
+#[derive(Debug, Deserialize)]
+pub struct ToneRule {
+    pub to: String,
+    pub t: f64,
+}
+
+/// The numbers of a lit style, mirrored from `src/pet/materials.ts`. Colour
+/// fields are tints, so both painters derive the tones from the same ink.
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SurfaceRule {
+    pub light: ToneRule,
+    pub base: Option<ToneRule>,
+    pub deep: ToneRule,
+    pub lx: f64,
+    pub ly: f64,
+    pub reach: f64,
+    pub mid: f64,
+    pub shade: f64,
+    pub gloss: f64,
+    pub gloss_r: f64,
+    pub eye_depth: f64,
+    pub orbits: f64,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Catalogue {
@@ -197,6 +223,7 @@ pub struct Catalogue {
     pub notif: NotifDef,
     pub comet_dot: f64,
     pub decalages: HashMap<String, HashMap<String, Offset>>,
+    pub surfaces: HashMap<String, SurfaceRule>,
 }
 
 use decor::ArcSeed;
@@ -264,7 +291,7 @@ pub struct EyePose {
     pub depth: f64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct RenderedEye {
     pub d: String,
     pub matrix: String,
@@ -275,18 +302,19 @@ pub struct RenderedEye {
     pub h: f64,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Serialize)]
 pub struct NotifFrame {
     pub x: f64,
     pub y: f64,
     pub r: f64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BotFrame {
     pub body_path: String,
-    /// The silhouette polygon (viewBox units) the body path was built from;
-    /// the native window uses it for hit testing without parsing the path.
+    /// Geometry for the native hit test; not part of the serialized frame.
+    #[serde(skip)]
     pub body_points: Vec<Point>,
     pub body_alpha: f64,
     pub eyes: Vec<RenderedEye>,

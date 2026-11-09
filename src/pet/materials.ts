@@ -23,17 +23,15 @@ import { mixHex } from '../bot/skins'
  *   1. `StyleId` and `STYLE_IDS` below — add the id. These are storage keys:
  *      `config.json` writes them, so NEVER rename or reorder an existing one,
  *      only add. The ids are French to match the engine's others.
- *   2. `surfaceFor` — return a `Surface`. Derive every colour from `ink` so the
- *      style works for all twelve colours, including the near-black and
+ *   2. `SURFACE_RULES` — add the rule: the tint targets and amounts for the three
+ *      tones, plus the light/shade/sheen numbers. Derive every colour from `ink`
+ *      so the style works for all twelve colours, including the near-black and
  *      near-white ends.
  *   3. `STYLE_NAMES` in `src/display.ts` — the English label.
- *   4. Nothing else. `PetFigure.vue` paints any `Surface`; it needs a change only
- *      when a style introduces a *new kind of element* — an outline, a second
- *      silhouette, a tinted orbit — rather than new numbers.
- *   5. Nothing in Rust. `Config` accepts any string, `pet_query` passes it
- *      through, the settings pill is generated from `STYLE_IDS`, and the pet
- *      resolves an unknown id back to `plat`. Touch Rust only to change the
- *      *default* style.
+ *   4. Regenerate the catalogue:
+ *      `pnpm exec vitest run --config vitest.golden.config.ts`.
+ *   5. Nothing else. The preview paints any `Surface`; `render.rs` reads the same
+ *      rule from the catalogue, so the native pet needs no change.
  *
  * A style must respect the constraints the desktop window imposes:
  *
@@ -91,17 +89,63 @@ export interface Surface {
 }
 
 export function surfaceFor(style: StyleId, ink: string): Surface | null {
-  if (style === 'argile') return clay(ink)
-  if (style === 'peluche') return plush(ink)
-  return null // `plat` draws no surface at all
+  const rule = SURFACE_RULES[style]
+  if (!rule) return null // `plat` draws no surface at all
+  const tone = (x: Tone) => mixHex(ink, x.to, x.t)
+  return {
+    light: tone(rule.light),
+    base: rule.base ? tone(rule.base) : ink,
+    deep: tone(rule.deep),
+    lx: rule.lx,
+    ly: rule.ly,
+    reach: rule.reach,
+    mid: rule.mid,
+    shade: rule.shade,
+    gloss: rule.gloss,
+    glossR: rule.glossR,
+    eyeDepth: rule.eyeDepth,
+    orbits: rule.orbits
+  }
 }
 
-/** Firm and cool-lit: the object is solid, with a clear terminator and a specular. */
-function clay(ink: string): Surface {
-  return {
-    light: mixHex(ink, '#ffffff', 0.5),
-    base: ink,
-    deep: mixHex(ink, '#000000', 0.34),
+/**
+ * A tint: `to` is mixed into the ink by `t`. Keeping the *rule* rather than the
+ * resolved colours is what lets `render.rs` derive the exact same tones natively
+ * from the same numbers.
+ */
+export interface Tone {
+  to: string
+  t: number
+}
+
+/** The numbers of a lit style, with tint targets instead of resolved hex. */
+export interface SurfaceRule {
+  light: Tone
+  /** `null` means the pet's own ink is the mid tone. */
+  base: Tone | null
+  deep: Tone
+  lx: number
+  ly: number
+  reach: number
+  mid: number
+  shade: number
+  gloss: number
+  glossR: number
+  eyeDepth: number
+  orbits: number
+}
+
+/**
+ * The one definition of every lit style. `tools/golden/dump.ts` copies this into
+ * `src-tauri/assets/engine-catalogue.json`, and `render.rs` reads it from there —
+ * so the preview and the native pet cannot disagree about a style's numbers.
+ */
+export const SURFACE_RULES: Partial<Record<StyleId, SurfaceRule>> = {
+  /** Firm and cool-lit: the object is solid, with a clear terminator and a specular. */
+  argile: {
+    light: { to: '#ffffff', t: 0.5 },
+    base: null,
+    deep: { to: '#000000', t: 0.34 },
     lx: -0.3,
     ly: -0.32,
     reach: 1.5,
@@ -111,15 +155,12 @@ function clay(ink: string): Surface {
     glossR: 0.26,
     eyeDepth: 0.28,
     orbits: 0.9
-  }
-}
-
-/** Warm and diffuse: a broad light, a big soft sheen, and a gentle edge. */
-function plush(ink: string): Surface {
-  return {
-    light: mixHex(ink, '#fff3e6', 0.3),
-    base: mixHex(ink, '#ffffff', 0.04),
-    deep: mixHex(ink, '#241a12', 0.15),
+  },
+  /** Warm and diffuse: a broad light, a big soft sheen, and a gentle edge. */
+  peluche: {
+    light: { to: '#fff3e6', t: 0.3 },
+    base: { to: '#ffffff', t: 0.04 },
+    deep: { to: '#241a12', t: 0.15 },
     lx: -0.2,
     ly: -0.28,
     reach: 2,

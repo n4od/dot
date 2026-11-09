@@ -1,6 +1,6 @@
 //! Port of `src/bot/decor.ts` (arcs, wheel colours, particles).
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 use super::math::{clamp, js_round, r2, TAU};
 
@@ -29,7 +29,7 @@ pub struct ArcSpec {
     pub opacity: f64,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Grad {
     pub x1: f64,
     pub y1: f64,
@@ -38,7 +38,7 @@ pub struct Grad {
     pub stops: Vec<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct ArcRender {
     pub id: String,
     pub front: String,
@@ -48,7 +48,7 @@ pub struct ArcRender {
     pub grad: Grad,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct DotRender {
     pub x: f64,
     pub y: f64,

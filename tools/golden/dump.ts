@@ -27,6 +27,7 @@ import { RAYON } from '../../src/bot/repere'
 import { hullOfCircles, polyPath, profileFromPolygon } from '../../src/bot/shape'
 import { COLORS, SHAPE_BY_ID, SHAPES } from '../../src/bot/skins'
 import { STATE_BY_ID, STATES, type StateId } from '../../src/bot/states'
+import { SURFACE_RULES } from '../../src/pet/materials'
 
 interface Init {
   state: StateId
@@ -155,7 +156,8 @@ const catalogue = {
     blue: NOTIF_BLUE
   },
   cometDot: COMET_DOT,
-  decalages: decalages()
+  decalages: decalages(),
+  surfaces: SURFACE_RULES
 }
 
 /* ---------------------------------------------------------------- the cases */

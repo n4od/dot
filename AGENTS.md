@@ -22,7 +22,7 @@ around a Vue 3 + Vite 8 frontend remains for the tray, the settings window and
 ```powershell
 cmd /c "pnpm install"
 cmd /c "pnpm app:dev"    # Tauri + Vite, hot reload. The real dev loop.
-cmd /c "pnpm dev"        # Vite only, in a browser, no shell — for visual work
+cmd /c "pnpm dev"        # Vite only, browser pet view (settings preview needs the shell)
 cmd /c "pnpm build"      # vue-tsc --noEmit && vite build. The only typecheck gate.
 cmd /c "pnpm test"       # vitest run: the engine suite, plain Node env (~15s)
 cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
@@ -42,7 +42,8 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 - Browser iteration: `http://localhost:1421/?window=pet&state=orbit`. `?shape=`,
   `?color=`, `?expression=` and `?style=` are also read from the URL. This is the
   **browser** pet view for visual work; the desktop pet is native and does not use
-  it.
+  it. The settings preview is not usable in a plain browser: it asks the Rust
+  engine for its frames (`preview_frame`), so it needs the Tauri shell.
 
 ## Build traps
 
@@ -86,8 +87,9 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   Vite's watcher — **editing it changes nothing**, including its copy of the test
   suite, which is never run. Re-copy files by hand if upstream is updated.
 - **The engine exists twice on purpose, joined by a contract.** `src/bot/` is the
-  frozen TypeScript original; `src-tauri/src/engine/` is the Rust port the native
-  pet uses. Neither edits the other. `tools/golden/dump.ts` regenerates the
+  frozen TypeScript original — now the reference and the browser pet view only.
+  `src-tauri/src/engine/` is the Rust port the native pet *and the settings
+  preview* use. Neither edits the other. `tools/golden/dump.ts` regenerates the
   golden frames and the catalogue
   (`pnpm exec vitest run --config vitest.golden.config.ts`); `cargo test` replays
   them in `src-tauri/tests/engine_parity.rs`. Change one engine and the parity test
@@ -96,12 +98,12 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 - `src/bot/engine.ts` is clock-free: `sample(now)` is pure with `now` in seconds, and
   `reset`/`setState`/`setLook` all take a clock time. Never read `Date.now()` inside
   the engine — the pet relies on pausing and resuming without drifting out of pose.
-- **`src/pet/PetFigure.vue` is the settings preview** (and the browser dev view). The
-  desktop pet paints natively in `render.rs`, so the preview is no longer literally
-  the same drawing; the parity suite and the mirrored `Surface` tables are what keep
-  them honest. Its `interactive` prop puts `.hit` on the body and eyes for the
-  browser view; `zoom` and `bare` crop the expression thumbnails; `styleId` selects
-  the paint — see **Styles** below.
+- **`src/pet/PetFigure.vue` is the settings preview** (and the browser dev view). It
+  gets its frames from the Rust engine through `preview_frame` and paints them with
+  SVG; the desktop pet paints the same frames natively in `render.rs`. Its
+  `interactive` prop puts `.hit` on the body and eyes for the browser view; `zoom`
+  and `bare` crop the expression thumbnails; `styleId` selects the paint — see
+  **Styles** below.
 - `src/display.ts` maps the engine's French ids to English labels for the interface.
   **The ids are storage keys** (`config.json`, the upstream tests); rename a label,
   never an id.
@@ -121,10 +123,11 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 - Three styles today: `plat` (default, one flat fill), `argile` (firm, glossy) and
   `peluche` (warm, diffuse). The id is a **storage key** in `config.json`: add
   styles, never rename or reorder ids.
-- **To add one:** id + a `Surface` in `materials.ts`, the same numbers in
-  `render.rs`'s `surface_for`, and the label in `src/display.ts`. The settings pill
-  is generated from `STYLE_IDS`; the preview validates with `isStyleId`. The default
-  lives in Rust only.
+- **To add one:** id + a rule in `SURFACE_RULES` (`materials.ts`), the label in
+  `src/display.ts`, then regenerate the catalogue. `render.rs` reads the rule from
+  the catalogue, so there is no matching Rust edit. The settings pill is generated
+  from `STYLE_IDS`; the preview validates with `isStyleId`. The default lives in
+  Rust only.
 - **`plat` must stay the default, and an unknown id must stay flat.** Config files
   written before the field existed have no `style` key; `#[serde(default)]` in Rust
   and `isStyleId`/`surface_for` are what keep them opening on the pet they were.

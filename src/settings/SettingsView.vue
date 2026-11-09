@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
-import { BotEngine, type BotFrame } from '../bot/engine'
-import { EXPRESSIONS, EXPRESSION_BY_ID, DEFAULT_EXPRESSION } from '../bot/expressions'
-import { RAYON } from '../bot/repere'
+import type { BotFrame } from '../bot/engine'
+import { EXPRESSIONS, DEFAULT_EXPRESSION } from '../bot/expressions'
 import { COLORS, COLOR_BY_ID, SHAPES, SHAPE_BY_ID, DEFAULT_SHAPE, DEFAULT_COLOR } from '../bot/skins'
 import { eyeFillFor } from '../contrast'
 import { COLOR_NAMES, EXPRESSION_NAMES, SHAPE_NAMES, STYLE_NAMES, displayName } from '../display'
@@ -13,10 +12,10 @@ import PetFigure from '../pet/PetFigure.vue'
 /*
  * The picker is a bench: the pet is on it, alive, while you change it.
  *
- * The preview is not a drawing — it is the same `BotEngine` the desktop window
- * runs, sampled on the same clock-free `sample(t)`, drawn by the same
- * `PetFigure` component. So the thing on the bench is the pet, and it cannot
- * promise something the desktop window will not do.
+ * The frames come from the **Rust** engine — the same one the desktop pet runs —
+ * through the `preview_frame` command; the preview keeps only the clock and the
+ * short list of state changes. The drawing is `PetFigure`, the same SVG painter
+ * the browser view uses. So the bench cannot promise something the pet will not do.
  */
 
 interface Config {
@@ -25,8 +24,6 @@ interface Config {
   expression: string
   style: string
 }
-
-const R = RAYON
 
 const config = ref<Config>({
   shape: DEFAULT_SHAPE,
@@ -54,32 +51,66 @@ const styleId = computed<StyleId>(() =>
 let clock = 0
 let last = 0
 let raf = 0
-let winkEndsAt = 0
+/** The engine is rebuilt on a change; `t` is measured from that rebuild. */
+let origin = 0
+/** Wink schedule, in engine-local seconds (relative to `origin`). */
+let winkAt: number | null = null
+let winkEnds: number | null = null
 let nextWinkAt = 9 + Math.random() * 6
 
-function makeEngine() {
-  const engine = new BotEngine(
-    R,
-    'idle',
-    SHAPE_BY_ID.get(config.value.shape)?.radii ?? null,
-    EXPRESSION_BY_ID.get(config.value.expression) ?? null
-  )
-  engine.reset('idle', clock)
-  return engine
+const frame = shallowRef<BotFrame | null>(null)
+
+function init() {
+  return { state: 'idle', shape: config.value.shape, expr: config.value.expression }
 }
 
-const engine = shallowRef(makeEngine())
-const frame = shallowRef<BotFrame>(engine.value.sample(clock))
+/** State changes that have already happened, in engine-local time. */
+function ops() {
+  const local = clock - origin
+  const out: { id: string; at: number }[] = []
+  if (winkAt !== null && local >= winkAt) out.push({ id: 'wink', at: winkAt })
+  if (winkEnds !== null && local >= winkEnds) out.push({ id: 'idle', at: winkEnds })
+  return out
+}
+
+/**
+ * The frames come from the Rust engine, replayed from a fresh engine each call —
+ * the same contract the parity fixtures use. At most one call is in flight, and
+ * the preview is capped at ~30 fps: it does not need the desktop's 60.
+ */
+let pending = false
+let lastFetch = 0
+async function refresh(force = false) {
+  if (pending || (!force && clock - lastFetch < 1 / 30)) return
+  pending = true
+  lastFetch = clock
+  try {
+    frame.value = await invoke<BotFrame>('preview_frame', {
+      init: init(),
+      ops: ops(),
+      t: clock - origin
+    })
+  } catch (e) {
+    error.value = String(e)
+  } finally {
+    pending = false
+  }
+}
+
+/** New shape or expression: rebuild from now, and forget the old wink. */
+function reset() {
+  origin = clock
+  winkAt = null
+  winkEnds = null
+  nextWinkAt = clock + 9 + Math.random() * 9
+  void refresh(true)
+}
 
 /** Shape and expression are baked into the engine at construction. */
 watch(
   () => [config.value.shape, config.value.expression],
   () => {
-    engine.value = makeEngine()
-    winkEndsAt = 0
-    // Re-arm the wink too: with the clock already past the old deadline, every
-    // change used to trigger an immediate wink on top of the perk animation.
-    nextWinkAt = clock + 9 + Math.random() * 9
+    reset()
     perk()
   }
 )
@@ -92,19 +123,14 @@ function tick(ms: number) {
   last = ms
   clock += dt
 
-  if (winkEndsAt) {
-    if (clock >= winkEndsAt) {
-      winkEndsAt = 0
-      engine.value.setState('idle', clock)
-    }
-  } else if (clock >= nextWinkAt) {
+  if (clock >= nextWinkAt) {
     // `wink` only: the roomier emotes throw orbits far outside the stage.
-    engine.value.setState('wink', clock)
-    winkEndsAt = clock + 1.5
-    nextWinkAt = winkEndsAt + 9 + Math.random() * 9
+    winkAt = clock - origin
+    winkEnds = winkAt + 1.5
+    nextWinkAt = clock + 1.5 + 9 + Math.random() * 9
   }
 
-  frame.value = engine.value.sample(clock)
+  void refresh()
 }
 
 /** A small squash when the pet is redressed, so the change reads as physical. */
@@ -151,10 +177,11 @@ function quit() {
 onMounted(async () => {
   try {
     config.value = await invoke<Config>('get_config')
-    engine.value = makeEngine()
+    reset()
   } catch (e) {
     error.value = String(e)
   }
+  void loadThumbnails()
   raf = requestAnimationFrame(tick)
 })
 
@@ -191,15 +218,28 @@ function outline(shape: string): string {
  * pet's own colour and with the real eye fill: sixteen faces of the thing you
  * are dressing, one per expression.
  */
-const expressions = EXPRESSIONS.map((expression) => {
-  const engine = new BotEngine(R, 'idle', SHAPE_BY_ID.get(DEFAULT_SHAPE)?.radii ?? null, expression)
-  engine.reset('idle', 0)
-  return {
-    id: expression.id,
-    name: displayName(EXPRESSION_NAMES, expression.id),
-    frame: straightAhead(engine.sample(0))
+const expressions = ref<{ id: string; name: string; frame: BotFrame }[]>([])
+
+/** Sixteen faces, one static frame each, from the same Rust engine. */
+async function loadThumbnails() {
+  try {
+    expressions.value = await Promise.all(
+      EXPRESSIONS.map(async (expression) => ({
+        id: expression.id,
+        name: displayName(EXPRESSION_NAMES, expression.id),
+        frame: straightAhead(
+          await invoke<BotFrame>('preview_frame', {
+            init: { state: 'idle', shape: DEFAULT_SHAPE, expr: expression.id },
+            ops: [],
+            t: 0
+          })
+        )
+      }))
+    )
+  } catch (e) {
+    error.value = String(e)
   }
-})
+}
 
 /**
  * Cancels the expression's head turn in a thumbnail.
@@ -256,6 +296,7 @@ function straightAhead(frame: BotFrame): BotFrame {
     <div class="bench">
       <section class="stage" aria-label="Preview">
         <PetFigure
+          v-if="frame"
           :key="perkKey"
           class="figure"
           :frame="frame"

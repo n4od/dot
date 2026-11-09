@@ -30,7 +30,7 @@ git -C /tmp/bloub checkout b4bb3c1b5f93c7b87a2e8d620f667c4093d97749
 ```bash
 pnpm install
 pnpm app:dev      # Tauri + Vite with hot reload (what you want while iterating)
-pnpm dev          # Vite only: the animation runs in a browser, with no shell
+pnpm dev          # Vite only, in a browser, no shell — the pet animation view
 pnpm build        # vue-tsc --noEmit && vite build
 pnpm test         # vitest run: the engine suite and the app's own tests
 ```
@@ -47,6 +47,10 @@ cargo build --manifest-path src-tauri/Cargo.toml --features custom-protocol
 A bare `cargo build` compiles and runs, but the window comes up blank: Tauri
 loads a dev server URL that is not there and embeds nothing. `tauri build` adds
 the feature for you; a plain `cargo` invocation does not.
+
+`pnpm dev` serves the browser pet view; the **settings preview asks the Rust
+engine for its frames**, so it needs the Tauri shell — use `pnpm app:dev` (the
+real dev loop) when working on the settings UI.
 
 The tray icon is the only way to quit while the pet is on screen: **Quit**.
 
@@ -70,11 +74,10 @@ desktop pet itself is native and does not use that path.
 blinking, and winking every so often — while shape, colour and expression are
 picked at the right. Every click applies to the pet on your desktop immediately.
 
-The pet on the stage is not an illustration. It runs the TypeScript engine the
-desktop pet was ported from, and a 142-frame parity suite replays the same frames
-through the Rust engine, so the bench cannot promise something the pet will not do.
-(The preview still draws with `PetFigure.vue` while the desktop pet paints
-natively: a new *style* must be added in both `materials.ts` and `render.rs`.)
+The pet on the stage is not an illustration. Its frames come from the Rust engine
+the desktop pet runs, through `preview_frame`, and are drawn by `PetFigure.vue` —
+the SVG painter the browser view uses. The desktop pet paints the same frames
+natively, so the bench cannot promise something the pet will not do.
 
 Option names are English (`Circle`, `Ink`, `Sleepy`); the ids behind them stay
 French, because those are what the engine, its tests and the config file use.
@@ -112,9 +115,10 @@ written before styles existed still opens on the pet it always was — the field
 `#[serde(default)]` on the Rust side, and an unknown id resolves back to `plat`
 in `src/pet/materials.ts`.
 
-There are two painters today, sharing the `Surface` vocabulary: `materials.ts`
-for the settings preview and `src-tauri/src/render.rs` for the native pet. A new
-style must be added to both.
+There is one definition of a style: `SURFACE_RULES` in `materials.ts`. The
+catalogue generator copies it into `engine-catalogue.json`, and
+`src-tauri/src/render.rs` reads it from there — so adding a style is a rule, a
+label, and a regenerate, with no matching Rust edit.
 
 A style is **data, not code**: `Surface` in `src/pet/materials.ts` is the whole
 vocabulary — three tones, where the light sits and how far it reaches, the strength

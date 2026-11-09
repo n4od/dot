@@ -300,10 +300,11 @@ confirm.
 
 Being explicit about the trade-offs:
 
-- **The settings preview is still Vue/SVG.** The desktop pet paints natively, so
-  a new *style* must be added in both `src/pet/materials.ts` and
-  `src-tauri/src/render.rs`. The parity suite keeps the frames equal, not the
-  painting code.
+- **The settings preview and the pet use the same engine and style data, but not
+  the same painter.** The preview asks Rust for its frames (`preview_frame`) and
+  paints them with SVG; the desktop pet paints the same frames with tiny-skia. The
+  styles are defined once (`SURFACE_RULES`), so the *data* cannot drift; the two
+  painters are generic over that data and must stay behaviourally in step.
 - **Drag, click-through and the live Settings→pet update** are implemented but
   were verified by hand, not automated. The rendering and idle cost were measured.
 - **Multi-monitor gaze** uses the primary monitor; per-monitor DPI is a later

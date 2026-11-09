@@ -81,37 +81,26 @@ struct Surface {
 }
 
 fn surface_for(style: &str, ink: &str) -> Option<Surface> {
-    match style {
-        "argile" => Some(Surface {
-            light: mix_hex(ink, "#ffffff", 0.5),
-            base: ink.into(),
-            deep: mix_hex(ink, "#000000", 0.34),
-            lx: -0.3,
-            ly: -0.32,
-            reach: 1.5,
-            mid: 0.34,
-            shade: 0.22,
-            gloss: 0.55,
-            gloss_r: 0.26,
-            eye_depth: 0.28,
-            orbits: 0.9,
-        }),
-        "peluche" => Some(Surface {
-            light: mix_hex(ink, "#fff3e6", 0.3),
-            base: mix_hex(ink, "#ffffff", 0.04),
-            deep: mix_hex(ink, "#241a12", 0.15),
-            lx: -0.2,
-            ly: -0.28,
-            reach: 2.0,
-            mid: 0.45,
-            shade: 0.1,
-            gloss: 0.18,
-            gloss_r: 0.5,
-            eye_depth: 0.12,
-            orbits: 0.85,
-        }),
-        _ => None,
-    }
+    let rule = crate::engine::catalogue().surfaces.get(style)?;
+    let tone = |x: &crate::engine::ToneRule| mix_hex(ink, &x.to, x.t);
+    Some(Surface {
+        light: tone(&rule.light),
+        base: rule
+            .base
+            .as_ref()
+            .map(tone)
+            .unwrap_or_else(|| ink.to_string()),
+        deep: tone(&rule.deep),
+        lx: rule.lx,
+        ly: rule.ly,
+        reach: rule.reach,
+        mid: rule.mid,
+        shade: rule.shade,
+        gloss: rule.gloss,
+        gloss_r: rule.gloss_r,
+        eye_depth: rule.eye_depth,
+        orbits: rule.orbits,
+    })
 }
 
 /* ------------------------------------------------------- paths and tokens */

@@ -7,6 +7,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The settings preview is drawn by the Rust engine.** `preview_frame` replays
+  the same stateless script the parity fixtures use, so the bench and the desktop
+  pet share one engine. The TypeScript engine remains as the reference and for the
+  browser-only pet view.
+
+- **Styles are defined once.** `src/pet/materials.ts` owns `SURFACE_RULES`; the
+  catalogue generator copies them into `engine-catalogue.json`, and `render.rs`
+  reads them instead of hardcoding Clay and Plush. Adding a style no longer needs
+  a matching edit in Rust.
+
 ## [0.3.1] — 2026-11-09
 
 ### Fixed

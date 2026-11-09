@@ -113,6 +113,41 @@ fn set_config(app: AppHandle, config: Config) -> Result<Config, String> {
     Ok(config)
 }
 
+/// One frame of the settings preview, replayed through the same engine the
+/// desktop pet runs. Stateless on purpose: the preview owns the clock and the
+/// short list of state changes, exactly like the golden fixtures.
+#[derive(serde::Deserialize)]
+struct PreviewInit {
+    state: String,
+    shape: Option<String>,
+    expr: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+struct PreviewOp {
+    id: String,
+    at: f64,
+}
+
+#[tauri::command]
+fn preview_frame(
+    init: PreviewInit,
+    ops: Vec<PreviewOp>,
+    t: f64,
+) -> Result<engine::BotFrame, String> {
+    let state = engine::StateId::from_id(&init.state).unwrap_or(engine::StateId::Idle);
+    let shape = init.shape.as_deref().and_then(engine::ShapeId::from_id);
+    let expr = init.expr.as_deref().and_then(engine::ExprId::from_id);
+    let mut pet = engine::BotEngine::new(render::RAYON, state, shape, expr);
+    pet.reset(state, 0.0);
+    for op in ops {
+        if let Some(id) = engine::StateId::from_id(&op.id) {
+            pet.set_state(id, op.at);
+        }
+    }
+    Ok(pet.sample(t))
+}
+
 /// Bottom-right of the primary monitor, with a margin so it does not sit under
 /// the taskbar.
 fn pet_anchor(app: &AppHandle) -> (f64, f64) {
@@ -179,7 +214,12 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let app = tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![quit_app, get_config, set_config])
+        .invoke_handler(tauri::generate_handler![
+            quit_app,
+            get_config,
+            set_config,
+            preview_frame
+        ])
         .setup(|app| {
             let handle = app.handle().clone();
             build_tray(&handle)?;
