@@ -7,6 +7,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.2] — 2026-11-09
+
 ### Added
 
 - **The settings preview is drawn by the Rust engine.** `preview_frame` replays
@@ -18,6 +20,12 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   catalogue generator copies them into `engine-catalogue.json`, and `render.rs`
   reads them instead of hardcoding Clay and Plush. Adding a style no longer needs
   a matching edit in Rust.
+
+### Changed
+
+- **A pale pet no longer disappears on the stage.** The stage figure carries a thin
+  edge halo as well as its soft shadow, so a Cream or white pet reads against the
+  paper.
 
 ## [0.3.1] — 2026-11-09
 

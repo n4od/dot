@@ -517,7 +517,9 @@ h1 {
   align-self: center;
   width: min(100%, 262px);
   aspect-ratio: 1;
-  filter: drop-shadow(0 14px 16px rgba(70, 52, 30, 0.22));
+  filter:
+    drop-shadow(0 0 1px rgba(70, 52, 30, 0.45))
+    drop-shadow(0 14px 16px rgba(70, 52, 30, 0.22));
   animation: perk 0.42s cubic-bezier(0.2, 0.8, 0.3, 1.3);
 }
 

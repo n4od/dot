@@ -1,7 +1,7 @@
 {
   "name": "dot",
   "private": true,
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "description": "Dot - a desktop pet built on the bloub morph engine.",
   "license": "MIT",
