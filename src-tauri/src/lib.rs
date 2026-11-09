@@ -314,3 +314,71 @@ pub fn run() {
         .run(tauri::generate_context!())
         .expect("error while running Dot");
 }
+
+/*
+ * The config file is the app's only persistence, and it is hand-editable, so the
+ * rules worth pinning are the ones a future field could break: an absent file or
+ * field falls back rather than failing, an id we do not know is kept as-is for
+ * the frontend to resolve, and nothing a hand-edited value contains can smuggle
+ * a second query parameter into the pet's URL.
+ */
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn config(style: &str) -> Config {
+        Config {
+            shape: "cercle".into(),
+            color: "encre".into(),
+            expression: "neutre".into(),
+            style: style.into(),
+        }
+    }
+
+    #[test]
+    fn an_empty_file_gets_the_default_pet() {
+        let config: Config = serde_json::from_str("{}").unwrap();
+        assert_eq!(config.shape, "cercle");
+        assert_eq!(config.color, "encre");
+        assert_eq!(config.expression, "neutre");
+        assert_eq!(config.style, "plat");
+    }
+
+    #[test]
+    fn a_file_from_before_styles_existed_still_loads_flat() {
+        let config: Config = serde_json::from_str(
+            r#"{"shape":"triangle","color":"violet","expression":"somnolent"}"#,
+        )
+        .unwrap();
+        assert_eq!(config.shape, "triangle");
+        assert_eq!(config.style, "plat");
+    }
+
+    #[test]
+    fn an_unknown_style_is_kept_for_the_frontend_to_resolve() {
+        let config: Config = serde_json::from_str(r#"{"style":"glass"}"#).unwrap();
+        assert_eq!(config.style, "glass");
+    }
+
+    #[test]
+    fn the_pet_query_carries_all_four_values() {
+        let mut config = config("argile");
+        config.shape = "galet".into();
+        config.color = "rouge".into();
+        config.expression = "fier".into();
+        assert_eq!(
+            pet_query(&config),
+            "?window=pet&shape=galet&color=rouge&expression=fier&style=argile"
+        );
+    }
+
+    #[test]
+    fn the_query_drops_anything_that_could_inject_a_parameter() {
+        let mut config = config("plat");
+        config.shape = "cercle&cloak=1".into();
+        assert_eq!(
+            pet_query(&config),
+            "?window=pet&shape=cerclecloak1&color=encre&expression=neutre&style=plat"
+        );
+    }
+}

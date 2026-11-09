@@ -7,6 +7,29 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`.github/workflows/ci.yml`**: the web job typechecks, builds and tests on Linux;
+  the Rust job runs `cargo fmt --check`, `cargo clippy -D warnings` and `cargo test`
+  on Windows. A broken typecheck or a blank-window regression no longer has to be
+  caught by hand.
+
+- **Tests for the app's own code**, on top of the engine suite. `contrast.test.ts`
+  pins the eye fill to perceived luminance — green is bright and blue is dark,
+  though their channel means are equal; `display.test.ts` checks that every
+  catalogue id has a label and that no label outlives its id; `materials.test.ts`
+  treats the style ids as the storage keys they are; and `engine.test.ts` pins
+  `LOOK_MORPH` from outside the frozen fork, which the upstream suite cannot. That
+  is 109 tests in 10 files, plus five Rust tests for the config file.
+
+- **`ROADMAP.md`**, the plan in phases — safety net, living with it, more than one
+  pet, platform, distribution — with the phase-1 items ticked.
+
+### Changed
+
+- **Rust formatting is enforced and clippy is clean under `-D warnings`**, so both
+  new CI checks start from a green baseline rather than a backlog.
+
 ## [0.2.0] — 2026-11-09
 
 ### Added

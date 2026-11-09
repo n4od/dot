@@ -25,10 +25,14 @@ cmd /c "pnpm test"       # vitest run: the engine suite, plain Node env (~15s)
 cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 ```
 
-- `pnpm test` covers **`src/bot/*.test.ts` only** — 6 files, 94 tests. They are a
-  copy of the upstream suites and are the only automated coverage in the repo.
-  Vitest runs with `globals: false`, so every test imports
+- `pnpm test` runs everything under `src/**/*.test.ts`: the six upstream suites
+  copied into `src/bot/`, plus the app's own — `contrast.test.ts`,
+  `display.test.ts`, `pet/materials.test.ts` and `engine.test.ts`. 10 files, 109
+  tests. Vitest runs with `globals: false`, so every test imports
   `{ describe, expect, it }` from `vitest` explicitly.
+- **The Rust side is tested too**: `cargo test --manifest-path src-tauri` runs the
+  config serde tests in `src-tauri/src/lib.rs`. CI (`.github/workflows/ci.yml`)
+  runs both sides, plus `cargo fmt --check` and `cargo clippy -D warnings`.
 - `pnpm build` typechecks the test files too (tsconfig includes `src/**/*.ts`), so a
   type error in a test fails the build, not just the tests.
 - Browser iteration: `http://localhost:1421/?window=pet&state=orbit`. `?shape=`,
@@ -135,6 +139,9 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   test stops flipping it, the pet is visible but invisible to the mouse.
 
 ## Bookkeeping
+
+- `ROADMAP.md` is the plan and `CHANGELOG.md` is what shipped. Tick a roadmap item
+  when it lands; the two must not disagree.
 
 - The version lives in three places that must agree: `package.json`,
   `src-tauri/tauri.conf.json` and `src-tauri/Cargo.toml`. Bump all three and add a

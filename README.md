@@ -27,7 +27,7 @@ pnpm install
 pnpm app:dev      # Tauri + Vite with hot reload (what you want while iterating)
 pnpm dev          # Vite only: the animation runs in a browser, with no shell
 pnpm build        # vue-tsc --noEmit && vite build
-pnpm test         # vitest run: the engine suite, in a plain Node environment
+pnpm test         # vitest run: the engine suite and the app's own tests
 ```
 
 A standalone binary needs the frontend **embedded**, and that only happens with
@@ -161,14 +161,18 @@ opaque and everything behind it is genuinely behind it.
 
 ## What is not here yet
 
-- More than one pet: the tray's *Add a pet* currently re-focuses `pet-1`, and the
+The plan is [ROADMAP.md](ROADMAP.md). In short:
+
+- **Cost**: the pet window runs at 60 fps whenever it is visible, about 36 % of one
+  core. Cutting that when nothing is happening is the next thing worth doing.
+- **More than one pet**: the tray's *Add a pet* currently re-focuses `pet-1`, and the
   config file describes a single appearance. Both need to become a list keyed by
   window label (`pet-2`, `pet-3`, ...).
-- Autostart, always-on-top over fullscreen apps, multi-monitor placement,
-  per-monitor DPI changes.
-- Tests for anything outside `src/bot/`: the engine suite is the only coverage,
-  and the pet's own behaviour (hit testing, gaze, drag) is still unproven by
-  anything but hand-checking.
+- **Platform**: autostart, always-on-top over fullscreen apps, multi-monitor
+  placement, per-monitor DPI changes.
+- **Coverage**: the engine has the upstream suite and the app's pure code is
+  covered too — but the pet's live behaviour (hit testing, gaze, drag) is still
+  checked by hand.
 
 ## Licence
 
