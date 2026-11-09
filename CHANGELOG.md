@@ -7,6 +7,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The pet remembers where you left it.** The native window saves its position
+  when a drag settles (`window.json`), restores it on launch, and clamps it to the
+  monitor work area so it cannot come back off-screen.
+
+- **Start with Windows.** The Startup toggle in Settings writes or removes the
+  `HKCU\...\Run` entry, with no plugin or extra runtime.
+
 ### Changed
 
 - **The tray hides and shows the pet.** The old no-op menu item is now a **Hide

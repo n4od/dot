@@ -7,6 +7,7 @@ use tauri::{
     AppHandle, Manager, WebviewUrl, WebviewWindowBuilder,
 };
 
+mod autostart;
 pub mod engine;
 mod pet;
 pub mod render;
@@ -93,6 +94,18 @@ fn quit_app(app: AppHandle) {
 #[tauri::command]
 fn get_config(app: AppHandle) -> Config {
     load_config(&app)
+}
+
+/// Whether Dot is set to start with Windows (`HKCU\...\Run`).
+#[tauri::command]
+fn get_autostart() -> Result<bool, String> {
+    autostart::is_enabled()
+}
+
+/// Turn the Windows startup entry on or off.
+#[tauri::command]
+fn set_autostart(enabled: bool) -> Result<(), String> {
+    autostart::set(enabled)
 }
 
 /// Persist and apply in one step. The pet is a native window now, so a change is
@@ -224,6 +237,8 @@ pub fn run() {
             quit_app,
             get_config,
             set_config,
+            get_autostart,
+            set_autostart,
             preview_frame
         ])
         .setup(|app| {
@@ -231,7 +246,6 @@ pub fn run() {
             build_tray(&handle)?;
 
             let config = load_config(&handle);
-            let (x, y) = pet_anchor(&handle);
             let scale = handle
                 .primary_monitor()
                 .ok()
@@ -239,6 +253,24 @@ pub fn run() {
                 .map(|m| m.scale_factor())
                 .unwrap_or(1.0);
             let size = (PET_SIZE * scale).round() as i32;
+
+            let state_path = handle
+                .path()
+                .app_config_dir()
+                .ok()
+                .map(|dir| dir.join("window.json"));
+
+            // A remembered position wins; otherwise anchor bottom-right. Either
+            // way it is clamped, so a saved spot can never come back off-screen.
+            let (x, y) = match state_path.as_deref().and_then(pet::load_position) {
+                Some(pos) => pos,
+                None => {
+                    let (lx, ly) = pet_anchor(&handle);
+                    ((lx * scale).round() as i32, (ly * scale).round() as i32)
+                }
+            };
+            let (x, y) = pet::clamp_to_work_area(x, y, size);
+
             let pet = pet::spawn(
                 PetConfig::from_raw(
                     &config.shape,
@@ -246,10 +278,11 @@ pub fn run() {
                     &config.color,
                     &config.style,
                 ),
-                (x * scale).round() as i32,
-                (y * scale).round() as i32,
+                x,
+                y,
                 size,
                 scale,
+                state_path,
             );
             app.manage(pet);
             Ok(())

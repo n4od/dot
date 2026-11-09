@@ -81,6 +81,8 @@ desktop pet itself is native and does not use that path.
 **Tray → Settings** is a workbench: the pet sits on a stage at the left, alive —
 blinking, and winking every so often — while shape, colour and expression are
 picked at the right. Every click applies to the pet on your desktop immediately.
+A **Startup** toggle starts Dot with Windows, and the pet remembers where you left
+it on screen.
 
 The pet on the stage is not an illustration. Its frames come from the Rust engine
 the desktop pet runs, through `preview_frame`, and are drawn by `PetFigure.vue` —

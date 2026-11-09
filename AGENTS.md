@@ -75,6 +75,12 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   never make one required. The pet thread reads it at startup, and `set_config`
   hands later changes to it, applied in place. Don't move this state into the
   frontend.
+- The pet remembers its position in `window.json` (same config dir): the pet thread
+  writes it when a drag settles, and `setup` restores it clamped to the monitor work
+  area.
+- Autostart is a `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` value managed
+  by `src-tauri/src/autostart.rs` — no plugin. The settings toggle calls
+  `get_autostart` / `set_autostart`.
 - **Closing Settings must not close the pet.** Tauri exits when its last window
   closes, and `AppHandle::exit` reports the same `ExitRequested` event. `lib.rs`
   keeps a `QUITTING` flag and calls `api.prevent_exit()` unless an explicit Quit

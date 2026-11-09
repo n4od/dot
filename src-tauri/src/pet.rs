@@ -7,6 +7,7 @@
 //! when the body is grabbed.
 
 use std::ffi::c_void;
+use std::path::{Path, PathBuf};
 use std::ptr;
 use std::slice;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
@@ -14,11 +15,13 @@ use std::sync::{Arc, Mutex, Once};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
+use serde::{Deserialize, Serialize};
 use tiny_skia::Pixmap;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{
-    CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, SelectObject, AC_SRC_ALPHA,
-    AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER, BI_RGB, BLENDFUNCTION, DIB_RGB_COLORS, HGDIOBJ,
+    CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, GetMonitorInfoW,
+    MonitorFromPoint, SelectObject, AC_SRC_ALPHA, AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER,
+    BI_RGB, BLENDFUNCTION, DIB_RGB_COLORS, HGDIOBJ, MONITORINFO, MONITOR_DEFAULTTONEAREST,
 };
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
@@ -149,9 +152,54 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
     }
 }
 
+/// The pet remembers where it was left, in physical pixels.
+#[derive(Serialize, Deserialize)]
+struct SavedPosition {
+    x: i32,
+    y: i32,
+}
+
+/// The last window position, or `None` if there is none / it is unreadable.
+pub fn load_position(path: &Path) -> Option<(i32, i32)> {
+    let text = std::fs::read_to_string(path).ok()?;
+    let pos: SavedPosition = serde_json::from_str(&text).ok()?;
+    Some((pos.x, pos.y))
+}
+
+fn save_position(path: &Path, x: i32, y: i32) {
+    if let Ok(text) = serde_json::to_string(&SavedPosition { x, y }) {
+        let _ = std::fs::write(path, text);
+    }
+}
+
+/// Keep the window on a monitor's work area, so a remembered position can never
+/// bring it back off-screen (monitor unplugged, resolution changed). The monitor
+/// is chosen by the point itself, so a pet parked on a second screen stays there.
+pub fn clamp_to_work_area(x: i32, y: i32, size: i32) -> (i32, i32) {
+    unsafe {
+        let monitor = MonitorFromPoint(POINT { x, y }, MONITOR_DEFAULTTONEAREST);
+        let mut info: MONITORINFO = std::mem::zeroed();
+        info.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+        if GetMonitorInfoW(monitor, &mut info) == 0 {
+            return (x, y);
+        }
+        let work = info.rcWork;
+        let max_x = (work.right - size).max(work.left);
+        let max_y = (work.bottom - size).max(work.top);
+        (x.clamp(work.left, max_x), y.clamp(work.top, max_y))
+    }
+}
+
 static REGISTER: Once = Once::new();
 
-pub fn spawn(initial: PetConfig, x: i32, y: i32, size: i32, scale: f64) -> PetHandle {
+pub fn spawn(
+    initial: PetConfig,
+    x: i32,
+    y: i32,
+    size: i32,
+    scale: f64,
+    state_path: Option<PathBuf>,
+) -> PetHandle {
     let shared = Arc::new(Mutex::new(initial));
     let version = Arc::new(AtomicU64::new(0));
     let visible = Arc::new(AtomicBool::new(true));
@@ -161,7 +209,11 @@ pub fn spawn(initial: PetConfig, x: i32, y: i32, size: i32, scale: f64) -> PetHa
         visible: visible.clone(),
     };
     let stop = Arc::new(AtomicBool::new(false));
-    thread::spawn(move || run(shared, version, visible, stop, x, y, size, scale));
+    thread::spawn(move || {
+        run(
+            shared, version, visible, stop, x, y, size, scale, state_path,
+        )
+    });
     handle
 }
 
@@ -175,6 +227,7 @@ fn run(
     y: i32,
     size: i32,
     _scale: f64,
+    state_path: Option<PathBuf>,
 ) {
     unsafe {
         let hinstance = GetModuleHandleW(ptr::null());
@@ -275,6 +328,7 @@ fn run(
 
         let mut last_version = version.load(Ordering::Relaxed);
         let mut shown = true;
+        let mut saved_pos = (x, y);
 
         loop {
             let mut msg: MSG = std::mem::zeroed();
@@ -347,6 +401,14 @@ fn run(
 
                 let mut rect: RECT = std::mem::zeroed();
                 GetWindowRect(hwnd, &mut rect);
+                // A drag moves the window while this thread is blocked in the OS
+                // move loop; the first frame after release sees the new position.
+                if let Some(path) = &state_path {
+                    if (rect.left, rect.top) != saved_pos {
+                        save_position(path, rect.left, rect.top);
+                        saved_pos = (rect.left, rect.top);
+                    }
+                }
                 let mon_w = GetSystemMetrics(SM_CXSCREEN) as f64;
                 let mon_h = GetSystemMetrics(SM_CYSCREEN) as f64;
                 let cx = (rect.left + rect.right) as f64 / 2.0;

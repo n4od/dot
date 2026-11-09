@@ -42,9 +42,10 @@ anything, and the pet is meant to run all day.
 
 ## Phase 3 — Polish and platform
 
-- [ ] Remember the pet's position across restarts.
+- [x] Remember the pet's position across restarts.
 - [ ] Multi-monitor placement and per-monitor DPI changes.
-- [ ] Autostart on login; stay on top over fullscreen apps.
+- [x] Autostart on login.
+- [ ] Stay on top over fullscreen apps.
 - [ ] A bundled interface font instead of the Georgia/Segoe fallbacks.
 - [ ] Reduced-motion support.
 - [ ] Optional: more styles. The `Surface` seam makes each one numbers plus a

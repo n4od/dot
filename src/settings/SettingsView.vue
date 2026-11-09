@@ -33,6 +33,8 @@ const config = ref<Config>({
 })
 const error = ref('')
 const saved = ref(false)
+const autostart = ref(false)
+const startupError = ref('')
 
 const shapeName = computed(() => displayName(SHAPE_NAMES, config.value.shape))
 const colorName = computed(() => displayName(COLOR_NAMES, config.value.color))
@@ -174,12 +176,28 @@ function quit() {
   void invoke('quit_app')
 }
 
+async function toggleAutostart() {
+  const want = autostart.value
+  startupError.value = ''
+  try {
+    await invoke('set_autostart', { enabled: want })
+  } catch (e) {
+    autostart.value = !want
+    startupError.value = String(e)
+  }
+}
+
 onMounted(async () => {
   try {
     config.value = await invoke<Config>('get_config')
     reset()
   } catch (e) {
     error.value = String(e)
+  }
+  try {
+    autostart.value = await invoke<boolean>('get_autostart')
+  } catch (e) {
+    startupError.value = String(e)
   }
   void loadThumbnails()
   raf = requestAnimationFrame(tick)
@@ -388,6 +406,18 @@ function straightAhead(frame: BotFrame): BotFrame {
               <span>{{ expression.name }}</span>
             </button>
           </div>
+        </section>
+
+        <section class="row">
+          <div class="rowhead">
+            <h2>Startup</h2>
+            <span class="value">{{ autostart ? 'On' : 'Off' }}</span>
+          </div>
+          <label class="check">
+            <input type="checkbox" v-model="autostart" @change="toggleAutostart" />
+            <span>Start with Windows</span>
+          </label>
+          <p v-if="startupError" class="startup-error">{{ startupError }}</p>
         </section>
       </div>
     </div>
@@ -811,5 +841,28 @@ footer {
 .quit:hover {
   background: #fff;
   border-color: rgba(90, 70, 45, 0.4);
+}
+
+.check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+  user-select: none;
+}
+
+.check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--ink);
+  cursor: pointer;
+}
+
+.startup-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: #b03a2e;
 }
 </style>
