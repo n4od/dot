@@ -7,6 +7,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.3.1] — 2026-11-09
+
 ### Fixed
 
 - **Closing Settings no longer closes the pet.** Tauri exits when its last window
