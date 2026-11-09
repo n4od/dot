@@ -1,5 +1,8 @@
 # Dot
 
+[![CI](https://github.com/n4od/dot/actions/workflows/ci.yml/badge.svg)](https://github.com/n4od/dot/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A desktop pet that lives in a transparent, frameless **native** window — a Win32
 layered window, not a browser — that turns its head towards your real cursor
 anywhere on the screen, emotes on its own, and lets clicks through wherever it is
