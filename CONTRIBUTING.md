@@ -47,6 +47,9 @@ commit the result:
 cmd /c "pnpm exec vitest run --config vitest.golden.config.ts"
 ```
 
+The pet's live behaviour — hit testing, gaze, drag — is still checked by hand; the
+automated suites cover the engine and the app's pure code.
+
 ## Style
 
 - Match the surrounding code, and its comments: they explain *why*, not *what*.

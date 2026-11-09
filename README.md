@@ -10,6 +10,9 @@ layered window, not a browser — that turns its head towards your real cursor
 anywhere on the screen, emotes on its own, and lets clicks through wherever it is
 not painted.
 
+It is tiny: about **1 % of one core and 15 MB** at rest — one native process, no
+browser.
+
 Built on the morph engine from [`jeremy-prt/bloub`](bloub) (MIT), pinned at
 commit [`b4bb3c1b5f93c7b87a2e8d620f667c4093d97749`](https://github.com/jeremy-prt/bloub/commit/b4bb3c1b5f93c7b87a2e8d620f667c4093d97749).
 `src/bot/` is a copy of that engine, plus its test suite: it is framework-free,
@@ -178,19 +181,9 @@ morphs, desktop-safe.
 to hide the back half of the rings would show as a disc. Here the body is simply
 opaque and everything behind it is genuinely behind it.
 
-## What is not here yet
+## Roadmap
 
-The plan is [ROADMAP.md](ROADMAP.md). In short:
-
-- **Cost**: the native pet is a single Win32 process painted with tiny-skia, and
-  measured **~1.1 % of one core and 14.6 MB** at rest — down from ~14 % and ~324 MB
-  when it was a WebView2 window. It draws at ~15 fps while resting and ~60 while
-  dragged, emoting or looked at.
-- **Platform**: autostart, always-on-top over fullscreen apps, multi-monitor
-  placement, per-monitor DPI changes.
-- **Coverage**: the engine has the upstream suite and the app's pure code is
-  covered too — but the pet's live behaviour (hit testing, gaze, drag) is still
-  checked by hand.
+The plan is in [ROADMAP.md](ROADMAP.md).
 
 ## Licence
 
