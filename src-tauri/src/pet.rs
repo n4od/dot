@@ -20,17 +20,19 @@ use tiny_skia::Pixmap;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{
     CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, GetMonitorInfoW,
-    MonitorFromPoint, SelectObject, AC_SRC_ALPHA, AC_SRC_OVER, BITMAPINFO, BITMAPINFOHEADER,
-    BI_RGB, BLENDFUNCTION, DIB_RGB_COLORS, HGDIOBJ, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+    MonitorFromPoint, MonitorFromWindow, SelectObject, AC_SRC_ALPHA, AC_SRC_OVER, BITMAPINFO,
+    BITMAPINFOHEADER, BI_RGB, BLENDFUNCTION, DIB_RGB_COLORS, HBITMAP, HDC, HGDIOBJ, MONITORINFO,
+    MONITOR_DEFAULTTONEAREST,
 };
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows_sys::Win32::UI::HiDpi::GetDpiForWindow;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetCursorPos,
-    GetSystemMetrics, GetWindowLongPtrW, GetWindowRect, PeekMessageW, PostQuitMessage,
-    RegisterClassW, SendMessageW, SetWindowLongPtrW, ShowWindow, TranslateMessage,
-    UpdateLayeredWindow, GWL_EXSTYLE, MSG, PM_REMOVE, SW_HIDE, SW_SHOW, ULW_ALPHA, WM_CLOSE,
-    WM_DESTROY, WM_LBUTTONDOWN, WM_NCLBUTTONDOWN, WM_QUIT, WNDCLASSW, WS_EX_LAYERED,
+    GetWindowLongPtrW, GetWindowRect, PeekMessageW, PostQuitMessage, RegisterClassW, SendMessageW,
+    SetWindowLongPtrW, SetWindowPos, ShowWindow, TranslateMessage, UpdateLayeredWindow,
+    GWL_EXSTYLE, MSG, PM_REMOVE, SWP_NOACTIVATE, SWP_NOZORDER, SW_HIDE, SW_SHOW, ULW_ALPHA,
+    WM_CLOSE, WM_DESTROY, WM_LBUTTONDOWN, WM_NCLBUTTONDOWN, WM_QUIT, WNDCLASSW, WS_EX_LAYERED,
     WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
 };
 
@@ -45,8 +47,6 @@ const WAKE_MS: u64 = 900;
 const IDLE_MS: u64 = 66;
 const BUSY_MS: u64 = 15;
 const HTCAPTION: usize = 2;
-const SM_CXSCREEN: i32 = 0;
-const SM_CYSCREEN: i32 = 1;
 
 /// The same resting animations the webview scheduler played.
 const EMOTES: [StateId; 10] = [
@@ -127,6 +127,20 @@ fn rand01() -> f64 {
     x = x.wrapping_mul(0xff51afd7ed558ccd);
     x ^= x >> 33;
     (x >> 11) as f64 / (1u64 << 53) as f64
+}
+
+/// A top-down 32-bit DIB the layered window is blitted from.
+unsafe fn create_dib(memdc: HDC, size: i32) -> (HBITMAP, *mut c_void) {
+    let mut bmi: BITMAPINFO = std::mem::zeroed();
+    bmi.bmiHeader.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
+    bmi.bmiHeader.biWidth = size;
+    bmi.bmiHeader.biHeight = -size; // top-down
+    bmi.bmiHeader.biPlanes = 1;
+    bmi.bmiHeader.biBitCount = 32;
+    bmi.bmiHeader.biCompression = BI_RGB;
+    let mut bits: *mut c_void = ptr::null_mut();
+    let hbitmap = CreateDIBSection(memdc, &bmi, DIB_RGB_COLORS, &mut bits, ptr::null_mut(), 0);
+    (hbitmap, bits)
 }
 
 unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
@@ -226,7 +240,7 @@ fn run(
     x: i32,
     y: i32,
     size: i32,
-    _scale: f64,
+    scale: f64,
     state_path: Option<PathBuf>,
 ) {
     unsafe {
@@ -268,19 +282,12 @@ fn run(
         ShowWindow(hwnd, SW_SHOW);
 
         let memdc = CreateCompatibleDC(ptr::null_mut());
-        let mut bmi: BITMAPINFO = std::mem::zeroed();
-        bmi.bmiHeader.biSize = std::mem::size_of::<BITMAPINFOHEADER>() as u32;
-        bmi.bmiHeader.biWidth = size;
-        bmi.bmiHeader.biHeight = -size; // top-down
-        bmi.bmiHeader.biPlanes = 1;
-        bmi.bmiHeader.biBitCount = 32;
-        bmi.bmiHeader.biCompression = BI_RGB;
-        let mut bits: *mut c_void = ptr::null_mut();
-        let hbitmap = CreateDIBSection(memdc, &bmi, DIB_RGB_COLORS, &mut bits, ptr::null_mut(), 0);
+        let mut size = size;
+        let (mut hbitmap, mut bits) = create_dib(memdc, size);
         SelectObject(memdc, hbitmap as HGDIOBJ);
-        let buf = slice::from_raw_parts_mut(bits as *mut u8, (size * size * 4) as usize);
+        let mut buf = slice::from_raw_parts_mut(bits as *mut u8, (size * size * 4) as usize);
 
-        let sz = SIZE { cx: size, cy: size };
+        let mut sz = SIZE { cx: size, cy: size };
         let src = POINT { x: 0, y: 0 };
         let blend = BLENDFUNCTION {
             BlendOp: AC_SRC_OVER as u8,
@@ -310,7 +317,11 @@ fn run(
         let mut emote_ends_at = 0.0f64;
         let mut through = true;
         let mut frame = engine.sample(0.0);
-        let s = size as f64 / (2.0 * DEMI);
+        let mut s = size as f64 / (2.0 * DEMI);
+        // The logical (DPI-independent) size the window should keep, and the DPI
+        // it currently has.
+        let logical = size as f64 / scale;
+        let mut cur_dpi = GetDpiForWindow(hwnd) as f64;
 
         render::paint_into(&mut pixmap, &frame, &color, &style);
         render::to_bgra(&pixmap, buf);
@@ -355,6 +366,37 @@ fn run(
             if !shown {
                 thread::sleep(Duration::from_millis(100));
                 continue;
+            }
+
+            // A monitor with a different scale factor changes this window's DPI.
+            // Resize in place so the pet keeps the same physical size.
+            let dpi = GetDpiForWindow(hwnd) as f64;
+            if dpi > 0.0 && dpi != cur_dpi {
+                cur_dpi = dpi;
+                let want = (logical * dpi / 96.0).round() as i32;
+                if want != size && want > 0 {
+                    let mut r: RECT = std::mem::zeroed();
+                    GetWindowRect(hwnd, &mut r);
+                    size = want;
+                    s = size as f64 / (2.0 * DEMI);
+                    sz = SIZE { cx: size, cy: size };
+                    pixmap = Pixmap::new(size as u32, size as u32).expect("pixmap");
+                    DeleteObject(hbitmap as HGDIOBJ);
+                    let (h, b) = create_dib(memdc, size);
+                    hbitmap = h;
+                    bits = b;
+                    SelectObject(memdc, hbitmap as HGDIOBJ);
+                    buf = slice::from_raw_parts_mut(bits as *mut u8, (size * size * 4) as usize);
+                    SetWindowPos(
+                        hwnd,
+                        ptr::null_mut(),
+                        r.left,
+                        r.top,
+                        size,
+                        size,
+                        SWP_NOZORDER | SWP_NOACTIVATE,
+                    );
+                }
             }
 
             let now = start.elapsed().as_secs_f64();
@@ -409,8 +451,20 @@ fn run(
                         saved_pos = (rect.left, rect.top);
                     }
                 }
-                let mon_w = GetSystemMetrics(SM_CXSCREEN) as f64;
-                let mon_h = GetSystemMetrics(SM_CYSCREEN) as f64;
+                // Gaze is normalised against the monitor the pet is on, not the
+                // primary one, so a pet parked on a second screen still looks at
+                // the cursor correctly.
+                let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+                let mut minfo: MONITORINFO = std::mem::zeroed();
+                minfo.cbSize = std::mem::size_of::<MONITORINFO>() as u32;
+                let (mon_w, mon_h) = if GetMonitorInfoW(monitor, &mut minfo) != 0 {
+                    (
+                        (minfo.rcMonitor.right - minfo.rcMonitor.left) as f64,
+                        (minfo.rcMonitor.bottom - minfo.rcMonitor.top) as f64,
+                    )
+                } else {
+                    (1920.0, 1080.0)
+                };
                 let cx = (rect.left + rect.right) as f64 / 2.0;
                 let cy = (rect.top + rect.bottom) as f64 / 2.0;
                 let nx = ((pos.x as f64 - cx) / (mon_w / 2.0).max(1.0)).clamp(-1.0, 1.0);

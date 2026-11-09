@@ -164,6 +164,8 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   `src-tauri/src/pet.rs`): ~60 fps while dragged, emoting or freshly woken, ~15 fps
   at rest, and it only takes the config lock when the version counter moves. The
   browser view (`PetView.vue`) has its own idle sleep, but it is not the desktop pet.
+- The pet adapts to its monitor: gaze uses that monitor's size, and a DPI change
+  resizes the window and rebuilds its DIB.
 
 ## Bookkeeping
 

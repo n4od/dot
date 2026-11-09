@@ -43,11 +43,10 @@ anything, and the pet is meant to run all day.
 ## Phase 3 — Polish and platform
 
 - [x] Remember the pet's position across restarts.
-- [ ] Multi-monitor placement and per-monitor DPI changes.
+- [x] Multi-monitor placement and per-monitor DPI changes. Gaze is normalised
+      against the monitor the pet is on, and a DPI change resizes the window in
+      place.
 - [x] Autostart on login.
-- [ ] Stay on top over fullscreen apps.
-- [ ] A bundled interface font instead of the Georgia/Segoe fallbacks.
-- [ ] Reduced-motion support.
 - [ ] Optional: more styles. The `Surface` seam makes each one numbers plus a
       label — see the checklist in `src/pet/materials.ts`.
 
@@ -92,6 +91,8 @@ the pet window, which is what "low resource" actually requires.
 
 ## Not planned
 
+- **Bundling an interface font.** The UI already uses Segoe UI Variable, which is
+  native and free; a bundled font would only make it less Windows-like.
 - **macOS and Linux.** The global-cursor poll and the transparent, click-through
   window are Windows-shaped; that is a rewrite, not a port.
 - **More styles for their own sake.** Three proves the seam. A new one is a
