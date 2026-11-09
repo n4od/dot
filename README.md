@@ -186,9 +186,6 @@ The plan is [ROADMAP.md](ROADMAP.md). In short:
   measured **~1.1 % of one core and 14.6 MB** at rest — down from ~14 % and ~324 MB
   when it was a WebView2 window. It draws at ~15 fps while resting and ~60 while
   dragged, emoting or looked at.
-- **More than one pet**: the tray's *Add a pet* currently re-focuses `pet-1`, and the
-  config file describes a single appearance. Both need to become a list keyed by
-  window label (`pet-2`, `pet-3`, ...).
 - **Platform**: autostart, always-on-top over fullscreen apps, multi-monitor
   placement, per-monitor DPI changes.
 - **Coverage**: the engine has the upstream suite and the app's pure code is

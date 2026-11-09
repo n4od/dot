@@ -80,8 +80,9 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   keeps a `QUITTING` flag and calls `api.prevent_exit()` unless an explicit Quit
   set it. Without that, destroying the Settings webview takes the native pet down
   with it — the pet is not a Tauri window.
-- Window labels are hardcoded (`settings` only, now); "Add a pet" is a no-op until
-  the multi-pet list lands.
+- The tray's **Hide pet / Show pet** toggles the native window's visibility
+  (`PetHandle::set_visible`, applied on the pet thread, which stops drawing while
+  hidden). Window labels are hardcoded (`settings` only).
 - `src/bot/` is a frozen copy of `jeremy-prt/bloub` @ `b4bb3c1` (MIT), tests
   included. `bloub/` is a reference snapshot that is gitignored and excluded from
   Vite's watcher — **editing it changes nothing**, including its copy of the test

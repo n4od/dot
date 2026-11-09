@@ -25,36 +25,22 @@ Everything later is verified by hand today. Fix that first.
 
 ## Phase 2 — Living with it (0.3.0)
 
-A visible WebView2 window costs about 13 % of a core before it draws anything, and
-the pet is meant to run all day.
+A visible WebView2 window used to cost about 13 % of a core before it drew
+anything, and the pet is meant to run all day.
 
-- [x] **Cut the idle cost.** The loop in `src/pet/PetView.vue` sleeps when nothing
-      is happening — no drag, no emote, cursor still — drawing at ~15 fps on a
-      timer instead of chaining `rAF`, waking to full rate on a cursor movement, a
-      drag or an emote, and stopping entirely while hidden (`IDLE_FRAME_MS`). The
-      click-through probe is skipped when neither the cursor nor the silhouette
-      moved. Measured, one idle window went from ~26 % of a core to ~14 %. It will
-      not go much lower while it is a WebView2 window: ~7 % of that is the GPU
-      process compositing the transparent window and ~5 % the renderer, both before
-      Dot draws anything. Phase 6 is about leaving that floor behind.
-- [ ] **Apply a config change in place** instead of reopening the pet window, so
-      picking a colour does not flash the pet or reset its animation.
-- [ ] **Tune and re-verify click-through.** It is load-bearing and the current
-      hand probe is flaky; make the check repeatable.
-- [ ] **Idle CPU budget in CI.** Once the loop is throttled, a regression test
-      that samples process CPU would keep it throttled.
+- [x] **Cut the idle cost.** The loop sleeps when nothing is happening — no drag,
+      no emote, cursor still — drawing at ~15 fps and waking to full rate on a
+      cursor movement, a drag or an emote. The native pet goes further: one process
+      and no browser at all — see Phase 5.
+- [x] **Apply a config change in place.** The native pet thread applies shape,
+      expression, colour and style to the running window; no reload, no flash.
+- [ ] **Tune and re-verify click-through.** The native window flips
+      `WS_EX_TRANSPARENT` from a point-in-polygon hit test; the repeatable check is
+      still owed.
+- [ ] **Idle CPU budget in CI.** A regression test that samples process CPU would
+      keep the loop throttled.
 
-## Phase 3 — More than one pet (0.4.0)
-
-The feature the README has never delivered.
-
-- [ ] **`config.json` becomes a list** keyed by window label, with a migration
-      from the current single-appearance file.
-- [ ] **The tray adds a pet**, creating `pet-2`, `pet-3`…
-- [ ] **Settings edits the focused pet**, and a closed window forgets it.
-- [ ] **Per-pet styling**: two pets can be different shapes, colours and styles.
-
-## Phase 4 — Polish and platform
+## Phase 3 — Polish and platform
 
 - [ ] Remember the pet's position across restarts.
 - [ ] Multi-monitor placement and per-monitor DPI changes.
@@ -64,7 +50,7 @@ The feature the README has never delivered.
 - [ ] Optional: more styles. The `Surface` seam makes each one numbers plus a
       label — see the checklist in `src/pet/materials.ts`.
 
-## Phase 5 — Distribution
+## Phase 4 — Distribution
 
 - [ ] **Updater** (Tauri) and **code signing**, so an installed Dot can update
       itself and the installer is not "unknown publisher".
@@ -73,10 +59,10 @@ The feature the README has never delivered.
 - [ ] **Decide the artwork licence.** The silhouettes imitate x.ai's avatar; fine
       for a personal pet, worth replacing before shipping commercially.
 
-## Phase 6 — A renderer with no browser
+## Phase 5 — A renderer with no browser
 
-Phase 2 measured the ceiling of the current design: ~13 % of one core and ~300 MB,
-almost all of it the WebView2 runtime rather than Dot. This phase removes it for
+Phase 2 measured the ceiling of the old design: ~13 % of one core and ~300 MB,
+almost all of it the WebView2 runtime rather than Dot. This phase removed it for
 the pet window, which is what "low resource" actually requires.
 
 - [x] **Spike done — the numbers justify the rewrite.** A software-rasterised blob

@@ -26,9 +26,9 @@ use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetCursorPos,
     GetSystemMetrics, GetWindowLongPtrW, GetWindowRect, PeekMessageW, PostQuitMessage,
     RegisterClassW, SendMessageW, SetWindowLongPtrW, ShowWindow, TranslateMessage,
-    UpdateLayeredWindow, GWL_EXSTYLE, MSG, PM_REMOVE, SW_SHOW, ULW_ALPHA, WM_CLOSE, WM_DESTROY,
-    WM_LBUTTONDOWN, WM_NCLBUTTONDOWN, WM_QUIT, WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
-    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
+    UpdateLayeredWindow, GWL_EXSTYLE, MSG, PM_REMOVE, SW_HIDE, SW_SHOW, ULW_ALPHA, WM_CLOSE,
+    WM_DESTROY, WM_LBUTTONDOWN, WM_NCLBUTTONDOWN, WM_QUIT, WNDCLASSW, WS_EX_LAYERED,
+    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
 };
 
 use crate::engine::{catalogue, BotEngine, ExprId, Look, ShapeId, StateId};
@@ -91,6 +91,8 @@ impl PetConfig {
 pub struct PetHandle {
     shared: Arc<Mutex<PetConfig>>,
     version: Arc<AtomicU64>,
+    /// Whether the window should be on screen; the pet thread applies it.
+    visible: Arc<AtomicBool>,
 }
 
 impl PetHandle {
@@ -99,6 +101,14 @@ impl PetHandle {
             *guard = config;
         }
         self.version.fetch_add(1, Ordering::Relaxed);
+    }
+
+    pub fn set_visible(&self, visible: bool) {
+        self.visible.store(visible, Ordering::SeqCst);
+    }
+
+    pub fn is_visible(&self) -> bool {
+        self.visible.load(Ordering::SeqCst)
     }
 }
 
@@ -144,12 +154,14 @@ static REGISTER: Once = Once::new();
 pub fn spawn(initial: PetConfig, x: i32, y: i32, size: i32, scale: f64) -> PetHandle {
     let shared = Arc::new(Mutex::new(initial));
     let version = Arc::new(AtomicU64::new(0));
+    let visible = Arc::new(AtomicBool::new(true));
     let handle = PetHandle {
         shared: shared.clone(),
         version: version.clone(),
+        visible: visible.clone(),
     };
     let stop = Arc::new(AtomicBool::new(false));
-    thread::spawn(move || run(shared, version, stop, x, y, size, scale));
+    thread::spawn(move || run(shared, version, visible, stop, x, y, size, scale));
     handle
 }
 
@@ -157,6 +169,7 @@ pub fn spawn(initial: PetConfig, x: i32, y: i32, size: i32, scale: f64) -> PetHa
 fn run(
     shared: Arc<Mutex<PetConfig>>,
     version: Arc<AtomicU64>,
+    visible: Arc<AtomicBool>,
     stop: Arc<AtomicBool>,
     x: i32,
     y: i32,
@@ -261,6 +274,7 @@ fn run(
         );
 
         let mut last_version = version.load(Ordering::Relaxed);
+        let mut shown = true;
 
         loop {
             let mut msg: MSG = std::mem::zeroed();
@@ -275,6 +289,18 @@ fn run(
             }
             if stop.load(Ordering::Relaxed) {
                 break;
+            }
+
+            // Shown or hidden, set from the tray. While hidden the loop stays
+            // cheap: no cursor poll, no paint.
+            let want_visible = visible.load(Ordering::SeqCst);
+            if want_visible != shown {
+                shown = want_visible;
+                ShowWindow(hwnd, if shown { SW_SHOW } else { SW_HIDE });
+            }
+            if !shown {
+                thread::sleep(Duration::from_millis(100));
+                continue;
             }
 
             let now = start.elapsed().as_secs_f64();

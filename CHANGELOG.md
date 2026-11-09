@@ -7,6 +7,11 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The tray hides and shows the pet.** The old no-op menu item is now a **Hide
+  pet / Show pet** toggle, and the pet stops drawing while hidden.
+
 ## [0.3.2] — 2026-11-09
 
 ### Added

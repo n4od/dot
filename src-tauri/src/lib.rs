@@ -185,25 +185,31 @@ fn open_settings(app: &AppHandle) -> tauri::Result<()> {
 }
 
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
-    let add = MenuItem::with_id(app, "add-pet", "Add a pet", true, None::<&str>)?;
+    let visibility = MenuItem::with_id(app, "toggle-pet", "Hide pet", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
     let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&add, &settings, &quit])?;
+    let menu = Menu::with_items(app, &[&visibility, &settings, &quit])?;
 
     let icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray.png"))?;
 
+    let toggle = visibility.clone();
     TrayIconBuilder::with_id("main")
         .icon(icon)
         .tooltip("Dot")
         .menu(&menu)
         .show_menu_on_left_click(true)
-        .on_menu_event(|app, event| match event.id().as_ref() {
+        .on_menu_event(move |app, event| match event.id().as_ref() {
             "quit" => request_quit(app),
             "settings" => {
                 let _ = open_settings(app);
             }
-            // One native pet for now; the multi-pet list is a later phase.
-            "add-pet" => {}
+            "toggle-pet" => {
+                if let Some(pet) = app.try_state::<PetHandle>() {
+                    let show = !pet.is_visible();
+                    pet.set_visible(show);
+                    let _ = toggle.set_text(if show { "Hide pet" } else { "Show pet" });
+                }
+            }
             _ => {}
         })
         .build(app)?;
