@@ -16,6 +16,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - **Start with Windows.** The Startup toggle in Settings writes or removes the
   `HKCU\...\Run` entry, with no plugin or extra runtime.
 
+- **Double-clicking the pet winks again.** The native port had dropped the
+  double-click reaction the webview had; a second click within 320 ms now plays a
+  wink, while a single click still drags.
+
 ### Changed
 
 - **The tray hides and shows the pet.** The old no-op menu item is now a **Hide

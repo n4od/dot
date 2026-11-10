@@ -25,6 +25,7 @@ use windows_sys::Win32::Graphics::Gdi::{
     MONITOR_DEFAULTTONEAREST,
 };
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows_sys::Win32::System::SystemInformation::GetTickCount64;
 use windows_sys::Win32::UI::HiDpi::GetDpiForWindow;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
 use windows_sys::Win32::UI::WindowsAndMessaging::{
@@ -47,6 +48,13 @@ const WAKE_MS: u64 = 900;
 const IDLE_MS: u64 = 66;
 const BUSY_MS: u64 = 15;
 const HTCAPTION: usize = 2;
+/// Two clicks within this window count as a double-click.
+const DOUBLE_CLICK_MS: u64 = 320;
+
+/// Tick of the previous click, and a wink requested by a double-click. The engine
+/// lives on the pet thread, so the window procedure only raises the flag.
+static LAST_CLICK: AtomicU64 = AtomicU64::new(0);
+static WINK_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 /// The same resting animations the webview scheduler played.
 const EMOTES: [StateId; 10] = [
@@ -146,7 +154,14 @@ unsafe fn create_dib(memdc: HDC, size: i32) -> (HBITMAP, *mut c_void) {
 unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) -> LRESULT {
     match msg {
         WM_LBUTTONDOWN => {
-            // Let the OS move the window: the body is the title bar.
+            // A second click within the double-click window is a wink; the first
+            // is a drag (the body acts as the title bar).
+            let now = GetTickCount64();
+            let last = LAST_CLICK.swap(now, Ordering::Relaxed);
+            if now.saturating_sub(last) < DOUBLE_CLICK_MS {
+                WINK_REQUESTED.store(true, Ordering::SeqCst);
+                return 0;
+            }
             let mut p = POINT { x: 0, y: 0 };
             GetCursorPos(&mut p);
             let lparam = ((p.y << 16) | (p.x & 0xffff)) as isize;
@@ -420,6 +435,14 @@ fn run(
             if pos.x != cursor_last.0 || pos.y != cursor_last.1 {
                 cursor_last = (pos.x, pos.y);
                 wake_until = now_ms + WAKE_MS;
+            }
+
+            // A double-click asks for a wink; it takes priority over the schedule.
+            if WINK_REQUESTED.swap(false, Ordering::SeqCst) {
+                engine.set_state(StateId::Wink, now);
+                let duration = catalogue().state_meta(StateId::Wink).duration.max(1.6);
+                emote_ends_at = now + duration;
+                next_emote_at = emote_ends_at + 7.0 + rand01() * 14.0;
             }
 
             if emote_ends_at > 0.0 {

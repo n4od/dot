@@ -89,6 +89,8 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 - The tray's **Hide pet / Show pet** toggles the native window's visibility
   (`PetHandle::set_visible`, applied on the pet thread, which stops drawing while
   hidden). Window labels are hardcoded (`settings` only).
+- A **double-click** on the pet plays a wink (`DOUBLE_CLICK_MS` in `pet.rs`); a
+  single click starts the OS drag.
 - `src/bot/` is a frozen copy of `jeremy-prt/bloub` @ `b4bb3c1` (MIT), tests
   included. `bloub/` is a reference snapshot that is gitignored and excluded from
   Vite's watcher — **editing it changes nothing**, including its copy of the test
