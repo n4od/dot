@@ -7,6 +7,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A repeatable click-through check.** `render::body_contains` has unit tests, and
+  `tools/check-click-through.ps1` drives the real cursor, reads the window's
+  `WS_EX_TRANSPARENT` bit, and asserts the body takes clicks while the corners pass
+  them through. The planned "idle CPU budget in CI" was dropped: CI has no
+  interactive desktop, and CPU measurement is too noisy for a threshold.
+
 ## [0.4.0] — 2026-11-10
 
 ### Added

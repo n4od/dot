@@ -162,6 +162,9 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 - The native window starts with `WS_EX_TRANSPARENT` and flips it from
   `render::body_contains` on `frame.body_points` (five probes). If that stops
   happening the pet is visible but invisible to the mouse.
+- `render::body_contains` has unit tests, and `tools/check-click-through.ps1`
+  drives the real cursor and reads `WS_EX_TRANSPARENT` to prove the body takes
+  clicks and the corners pass them through.
 - **The native frame loop sleeps at the draw cadence** (`BUSY_MS`/`IDLE_MS` in
   `src-tauri/src/pet.rs`): ~60 fps while dragged, emoting or freshly woken, ~15 fps
   at rest, and it only takes the config lock when the version counter moves. The

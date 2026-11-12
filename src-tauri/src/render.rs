@@ -701,3 +701,45 @@ pub fn body_contains(points: &[VPoint], x: f64, y: f64) -> bool {
 /// Kept for the eye glyph path in dot rendering.
 #[allow(dead_code)]
 fn unused(_: &RenderedEye) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn square() -> Vec<VPoint> {
+        vec![
+            VPoint { x: 0.0, y: 0.0 },
+            VPoint { x: 10.0, y: 0.0 },
+            VPoint { x: 10.0, y: 10.0 },
+            VPoint { x: 0.0, y: 10.0 },
+        ]
+    }
+
+    #[test]
+    fn a_point_inside_the_silhouette_is_a_hit() {
+        assert!(body_contains(&square(), 5.0, 5.0));
+    }
+
+    #[test]
+    fn a_point_outside_is_not() {
+        assert!(!body_contains(&square(), 15.0, 5.0));
+        assert!(!body_contains(&square(), 5.0, -3.0));
+    }
+
+    #[test]
+    fn a_concave_outline_reports_its_notch_as_outside() {
+        // An L shape: the missing quadrant must read as outside, or click-through
+        // would leave a dead zone where nothing is painted.
+        let l = vec![
+            VPoint { x: 0.0, y: 0.0 },
+            VPoint { x: 10.0, y: 0.0 },
+            VPoint { x: 10.0, y: 4.0 },
+            VPoint { x: 4.0, y: 4.0 },
+            VPoint { x: 4.0, y: 10.0 },
+            VPoint { x: 0.0, y: 10.0 },
+        ];
+        assert!(body_contains(&l, 2.0, 2.0));
+        assert!(body_contains(&l, 8.0, 2.0));
+        assert!(!body_contains(&l, 8.0, 8.0));
+    }
+}

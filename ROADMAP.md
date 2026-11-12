@@ -34,11 +34,9 @@ anything, and the pet is meant to run all day.
       and no browser at all — see Phase 5.
 - [x] **Apply a config change in place.** The native pet thread applies shape,
       expression, colour and style to the running window; no reload, no flash.
-- [ ] **Tune and re-verify click-through.** The native window flips
-      `WS_EX_TRANSPARENT` from a point-in-polygon hit test; the repeatable check is
-      still owed.
-- [ ] **Idle CPU budget in CI.** A regression test that samples process CPU would
-      keep the loop throttled.
+- [x] **Re-verify click-through.** The hit test is unit-tested in `render.rs`, and
+      `tools/check-click-through.ps1` launches the app, moves the cursor onto the
+      body and onto a corner, and asserts the `WS_EX_TRANSPARENT` bit flips.
 
 ## Phase 3 — Polish and platform
 
