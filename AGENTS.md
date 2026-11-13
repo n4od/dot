@@ -186,8 +186,14 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   expression's face is applied (`baseFace` in both engines), never inside a painter.
   States without a face (`thinking`, `alert`, `exclaim`, `sleep`) must set
   `mouth.alpha = 0`, and `burst`/`comet` fade it in with `eyeAlpha`, or the mouth
-  outlives the eyes. The port guide — the eight edits, the numbers, the traps, and
-  how the same change lands on upstream `bloub`'s mask-based painter — is
+  outlives the eyes. Settings can switch it off (`Config.mouth` →
+  `set_mouth`/`setMouth`); the switch is a gate in the engine, so `false` makes every
+  frame's `mouth` `None` — the path the faceless states already take — and every
+  state, the stage and the sixteen thumbnails agree by construction. Default is on,
+  and it comes from `Config`'s `Default`, not from `#[serde(default)]`: serde's
+  default for a `bool` is `false`, which would take the mouth off every pet that
+  existed before the field. The port guide — the eight edits, the numbers, the traps,
+  and how the same change lands on upstream `bloub`'s mask-based painter — is
   `docs/adding-the-mouth.md`.
 - **In the browser view**, `class="hit"` is load-bearing: the click-through test is
   `elementFromPoint(…).closest('.hit')`; renaming or dropping those classes silently

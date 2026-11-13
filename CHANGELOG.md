@@ -25,6 +25,10 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   cocked, and a level mouth under those eyes reads as a smirk. Both painters consume
   the same numbers: `render.rs` fills and strokes in tiny-skia, `PetFigure.vue` in
   SVG, both clipped to the body mask, both in the contrast colour the eyes use.
+  And it can be **switched off** in Settings (`mouth` in `config.json`): the switch
+  is a gate in the engine, so a mouthless pet is mouthless in every state, in the
+  stage and in all sixteen expression thumbnails, and a config written before the
+  field existed still has its mouth.
 
 - **A repeatable click-through check.** `render::body_contains` has unit tests, and
   `tools/check-click-through.ps1` drives the real cursor, reads the window's

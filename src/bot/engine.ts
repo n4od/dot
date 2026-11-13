@@ -180,6 +180,11 @@ export class BotEngine {
   private lookAt = -10
   /** duree de rattrapage en cours ; voir `LOOK_MORPH`, sa valeur par defaut */
   private lookMorph = 0.24
+  /**
+   * Le visage a-t-il une bouche ? `false` rend `mouth: null` sur toutes les
+   * images, le chemin que prennent deja les etats sans visage.
+   */
+  private mouth = true
 
   /** duree du morph quand on change la forme du corps */
   static readonly SHAPE_MORPH = 0.45
@@ -238,6 +243,18 @@ export class BotEngine {
     this.shapePrev = this.shape
     this.shape = radii
     this.shapeAt = now
+  }
+
+  /**
+   * Le visage a-t-il une bouche ?
+   *
+   * C'est de l'apparence, donc ca vit ici avec la pose et pas dans un peintre :
+   * tous les etats, la scene des reglages et les vignettes d'expression disent
+   * alors la meme chose par construction. Instantane, pas de morph : une bouche
+   * qui s'efface en fondu ferait croire a un etat de plus.
+   */
+  setMouth(on: boolean) {
+    this.mouth = on
   }
 
   /**
@@ -580,7 +597,7 @@ export class BotEngine {
     if (rot > 90) rot -= 180
     else if (rot <= -90) rot += 180
     const mouth =
-      pose.mouth.alpha > 0.01
+      this.mouth && pose.mouth.alpha > 0.01
         ? {
             x: mx * 0.75 + (offX + decalage.x) * R,
             y: my + 0.36 * (R - my) + (offY + decalage.y) * R,

@@ -80,10 +80,19 @@ pub struct PetConfig {
     pub expression: ExprId,
     pub color: String,
     pub style: String,
+    /// Whether the face has a mouth; appearance, so it is applied in place with
+    /// the rest of the config.
+    pub mouth: bool,
 }
 
 impl PetConfig {
-    pub fn from_raw(shape: &str, expression: &str, color_id: &str, style: &str) -> Self {
+    pub fn from_raw(
+        shape: &str,
+        expression: &str,
+        color_id: &str,
+        style: &str,
+        mouth: bool,
+    ) -> Self {
         let hex = catalogue()
             .colors
             .iter()
@@ -95,6 +104,7 @@ impl PetConfig {
             expression: ExprId::from_id(expression).unwrap_or(ExprId::Neutre),
             color: hex,
             style: style.to_string(),
+            mouth,
         }
     }
 }
@@ -330,10 +340,12 @@ fn run(
             expression: ExprId::Neutre,
             color: "#0a0a0c".into(),
             style: "plat".into(),
+            mouth: true,
         });
 
         let mut engine =
             BotEngine::new(R, StateId::Idle, Some(first.shape), Some(first.expression));
+        engine.set_mouth(first.mouth);
         let mut color = first.color.clone();
         let mut style = first.style.clone();
         let mut pixmap = Pixmap::new(size as u32, size as u32).expect("pixmap");
@@ -446,6 +458,7 @@ fn run(
                 if let Ok(cfg) = shared.lock().map(|c| c.clone()) {
                     engine.set_shape(Some(cfg.shape), now);
                     engine.set_expression(Some(cfg.expression), now);
+                    engine.set_mouth(cfg.mouth);
                     color = cfg.color;
                     style = cfg.style;
                 }

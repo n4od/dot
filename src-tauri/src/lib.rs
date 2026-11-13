@@ -35,6 +35,9 @@ struct Config {
     expression: String,
     /// `plat` (the flat fill), `argile` or `peluche`. Unknown values read flat.
     style: String,
+    /// Whether the face has a mouth. Defaults to on: a config written before the
+    /// field existed keeps the face it had.
+    mouth: bool,
 }
 
 impl Default for Config {
@@ -44,6 +47,7 @@ impl Default for Config {
             color: "encre".into(),
             expression: "neutre".into(),
             style: "plat".into(),
+            mouth: true,
         }
     }
 }
@@ -120,6 +124,7 @@ fn set_config(app: AppHandle, config: Config) -> Result<Config, String> {
             &config.expression,
             &config.color,
             &config.style,
+            config.mouth,
         ));
     }
 
@@ -134,6 +139,15 @@ struct PreviewInit {
     state: String,
     shape: Option<String>,
     expr: Option<String>,
+    /// Absent from an older frontend: a mouth, like a config written before the
+    /// field existed.
+    #[serde(default = "yes")]
+    mouth: bool,
+}
+
+/// serde's default for a bool is `false`; every default here is "still there".
+fn yes() -> bool {
+    true
 }
 
 #[derive(serde::Deserialize)]
@@ -152,6 +166,7 @@ fn preview_frame(
     let shape = init.shape.as_deref().and_then(engine::ShapeId::from_id);
     let expr = init.expr.as_deref().and_then(engine::ExprId::from_id);
     let mut pet = engine::BotEngine::new(render::RAYON, state, shape, expr);
+    pet.set_mouth(init.mouth);
     pet.reset(state, 0.0);
     for op in ops {
         if let Some(id) = engine::StateId::from_id(&op.id) {
@@ -277,6 +292,7 @@ pub fn run() {
                     &config.expression,
                     &config.color,
                     &config.style,
+                    config.mouth,
                 ),
                 x,
                 y,
@@ -334,5 +350,28 @@ mod tests {
     fn an_unknown_style_is_kept_for_the_frontend_to_resolve() {
         let config: Config = serde_json::from_str(r#"{"style":"glass"}"#).unwrap();
         assert_eq!(config.style, "glass");
+    }
+
+    /// `bool`'s serde default is `false`, which would take the mouth off every
+    /// pet that existed before the field did. The struct default is what saves it.
+    #[test]
+    fn a_file_from_before_mouths_existed_still_has_one() {
+        let config: Config =
+            serde_json::from_str(r#"{"shape":"galet","color":"creme","style":"peluche"}"#).unwrap();
+        assert!(config.mouth);
+    }
+
+    #[test]
+    fn the_mouth_can_be_switched_off() {
+        let config: Config = serde_json::from_str(r#"{"mouth":false}"#).unwrap();
+        assert!(!config.mouth);
+    }
+
+    /// Same trap one layer up: an older settings window sends a preview request
+    /// with no `mouth`, and serde's default for a bool would paint it mouthless.
+    #[test]
+    fn a_preview_request_from_before_mouths_still_has_one() {
+        let init: PreviewInit = serde_json::from_str(r#"{"state":"idle"}"#).unwrap();
+        assert!(init.mouth);
     }
 }

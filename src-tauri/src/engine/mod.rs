@@ -456,6 +456,9 @@ pub struct BotEngine {
     look_prev: Look,
     look_at: f64,
     look_morph: f64,
+    /// Whether the face has a mouth at all. `false` makes every frame's
+    /// `mouth: None`, which is the same path the faceless states already take.
+    mouth: bool,
 }
 
 impl BotEngine {
@@ -481,7 +484,15 @@ impl BotEngine {
             look_prev: NO_LOOK,
             look_at: -10.0,
             look_morph: Self::LOOK_MORPH,
+            mouth: true,
         }
+    }
+
+    /// Whether the pet is drawn with a mouth. It is appearance, so it lives here
+    /// with the pose rather than in a painter: every state, the settings stage and
+    /// the expression thumbnails then agree by construction.
+    pub fn set_mouth(&mut self, on: bool) {
+        self.mouth = on;
     }
 
     pub fn state(&self) -> StateId {
@@ -780,7 +791,7 @@ impl BotEngine {
         } else if rot <= -90.0 {
             rot += 180.0;
         }
-        let mouth = if p.mouth.alpha > 0.01 {
+        let mouth = if self.mouth && p.mouth.alpha > 0.01 {
             Some(MouthFrame {
                 x: mx * 0.75 + (off_x + decalage.x) * r,
                 y: my + 0.36 * (r - my) + (off_y + decalage.y) * r,
@@ -887,5 +898,32 @@ impl BotEngine {
             notif,
             notch,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The switch has to hold everywhere, not only at rest: `wide` and `wink`
+    /// carry their own face, and a mouth that came back mid-emote would read as a
+    /// bug rather than as a setting.
+    #[test]
+    fn the_mouth_switch_empties_every_frame() {
+        let mut engine = BotEngine::new(100.0, StateId::Idle, Some(ShapeId::Cercle), None);
+        assert!(engine.sample(0.7).mouth.is_some());
+
+        engine.set_mouth(false);
+        for state in [StateId::Idle, StateId::Wide, StateId::Wink, StateId::Notify] {
+            engine.reset(state, 0.0);
+            assert!(
+                engine.sample(0.8).mouth.is_none(),
+                "{state:?} still had a mouth"
+            );
+        }
+
+        engine.set_mouth(true);
+        engine.reset(StateId::Idle, 0.0);
+        assert!(engine.sample(0.7).mouth.is_some());
     }
 }

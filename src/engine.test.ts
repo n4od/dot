@@ -54,6 +54,29 @@ describe('BotEngine.sample', () => {
   })
 })
 
+describe('the mouth switch', () => {
+  it('is on by default, and off means no mouth at all', () => {
+    const engine = new BotEngine(RAYON, 'idle', null, null)
+    engine.reset('idle', 0)
+    expect(engine.sample(0.7).mouth).not.toBeNull()
+
+    engine.setMouth(false)
+    const bare = engine.sample(0.7)
+    expect(bare.mouth).toBeNull()
+    // The rest of the face is untouched: this is a gate, not a different pose.
+    expect(bare.eyes.length).toBeGreaterThan(0)
+  })
+
+  it('stays off through a state that has a mouth of its own', () => {
+    // `wink` and `wide` carry their own face, so a gate that only held at rest
+    // would let the mouth come back mid-emote.
+    const engine = new BotEngine(RAYON, 'idle', null, null)
+    engine.setMouth(false)
+    engine.reset('wide', 0)
+    expect(engine.sample(0.8).mouth).toBeNull()
+  })
+})
+
 describe('the gaze morph', () => {
   it('turns the eyes, and eases rather than snapping', () => {
     /*

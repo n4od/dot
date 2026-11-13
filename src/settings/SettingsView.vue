@@ -23,13 +23,15 @@ interface Config {
   color: string
   expression: string
   style: string
+  mouth: boolean
 }
 
 const config = ref<Config>({
   shape: DEFAULT_SHAPE,
   color: DEFAULT_COLOR,
   expression: DEFAULT_EXPRESSION,
-  style: DEFAULT_STYLE
+  style: DEFAULT_STYLE,
+  mouth: true
 })
 const error = ref('')
 const saved = ref(false)
@@ -63,7 +65,12 @@ let nextWinkAt = 9 + Math.random() * 6
 const frame = shallowRef<BotFrame | null>(null)
 
 function init() {
-  return { state: 'idle', shape: config.value.shape, expr: config.value.expression }
+  return {
+    state: 'idle',
+    shape: config.value.shape,
+    expr: config.value.expression,
+    mouth: config.value.mouth
+  }
 }
 
 /** State changes that have already happened, in engine-local time. */
@@ -110,7 +117,7 @@ function reset() {
 
 /** Shape and expression are baked into the engine at construction. */
 watch(
-  () => [config.value.shape, config.value.expression],
+  () => [config.value.shape, config.value.expression, config.value.mouth],
   () => {
     reset()
     perk()
@@ -146,6 +153,16 @@ function perk() {
 function pick(key: keyof Config, value: string) {
   if (config.value[key] === value) return
   config.value = { ...config.value, [key]: value }
+  schedule()
+}
+
+/**
+ * The mouth is the one boolean on this panel, so it cannot go through `pick`,
+ * which speaks in stored string ids. Same coalesced write.
+ */
+function setMouth(on: boolean) {
+  if (config.value.mouth === on) return
+  config.value = { ...config.value, mouth: on }
   schedule()
 }
 
@@ -247,7 +264,13 @@ async function loadThumbnails() {
         name: displayName(EXPRESSION_NAMES, expression.id),
         frame: straightAhead(
           await invoke<BotFrame>('preview_frame', {
-            init: { state: 'idle', shape: DEFAULT_SHAPE, expr: expression.id },
+            init: {
+              state: 'idle',
+              shape: DEFAULT_SHAPE,
+              expr: expression.id,
+              // The bench must not promise a mouth the pet will not draw.
+              mouth: config.value.mouth
+            },
             ops: [],
             t: 0
           })
@@ -258,6 +281,12 @@ async function loadThumbnails() {
     error.value = String(e)
   }
 }
+
+/** Turning the mouth off repaints the sixteen chips, not just the stage. */
+watch(
+  () => config.value.mouth,
+  () => void loadThumbnails()
+)
 
 /**
  * Cancels the expression's head turn in a thumbnail.
@@ -280,6 +309,11 @@ function straightAhead(frame: BotFrame): BotFrame {
 
   return {
     ...frame,
+    // The mouth is placed from those same eyes, so it travels with them; its cant
+    // stays, because the shift above moves the pair without levelling it.
+    mouth: frame.mouth
+      ? { ...frame.mouth, x: frame.mouth.x - cx, y: frame.mouth.y - cy }
+      : null,
     eyes: frame.eyes.map((eye, i) => {
       const [a, b, c, d, e, f] = parsed[i]!
       return { ...eye, matrix: `matrix(${a},${b},${c},${d},${e - cx},${f - cy})` }
@@ -410,6 +444,33 @@ function straightAhead(frame: BotFrame): BotFrame {
 
         <section class="row">
           <div class="rowhead">
+            <h2>Mouth</h2>
+            <span class="value">{{ config.mouth ? 'On' : 'Off' }}</span>
+          </div>
+          <div class="pills" role="group" aria-label="Mouth">
+            <button
+              type="button"
+              class="stylebtn"
+              :class="{ on: config.mouth }"
+              :aria-pressed="config.mouth"
+              @click="setMouth(true)"
+            >
+              On
+            </button>
+            <button
+              type="button"
+              class="stylebtn"
+              :class="{ on: !config.mouth }"
+              :aria-pressed="!config.mouth"
+              @click="setMouth(false)"
+            >
+              Off
+            </button>
+          </div>
+        </section>
+
+        <section class="row">
+          <div class="rowhead">
             <h2>Startup</h2>
             <span class="value">{{ autostart ? 'On' : 'Off' }}</span>
           </div>
@@ -503,6 +564,16 @@ h1 {
 .stylebtn.on {
   background: var(--ink);
   color: #f7f3ec;
+}
+
+/* A two-state row: the style picker's pill vocabulary, without the header's
+   alignment (that one is pushed right, this one sits on the row). */
+.pills {
+  display: inline-flex;
+  padding: 2px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.55);
 }
 
 /* ------------------------------------------------------------------ bench */

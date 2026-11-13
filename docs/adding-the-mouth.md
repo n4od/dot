@@ -450,6 +450,41 @@ Each of these was paid for once.
 - **A new faceless state needs `alpha: 0`.** Nothing catches this for you: the mouth
   would simply linger on a body that has no eyes.
 
+## Switching it off (Dot only)
+
+Settings can turn the mouth off, and the switch is one gate in the engine rather
+than a painter flag — the frame is the only place a fourth painter cannot forget.
+
+```rust
+// engine/mod.rs
+pub fn set_mouth(&mut self, on: bool) { self.mouth = on; }
+
+// engine/mod.rs, in sample()
+let mouth = if self.mouth && p.mouth.alpha > 0.01 { Some(MouthFrame { .. }) } else { None };
+```
+
+`false` therefore produces exactly what a faceless state produces — `mouth: null` —
+so every state, the settings stage and the sixteen expression thumbnails agree by
+construction, and no painter needs to know the setting exists. The TS side is the
+same flag on `BotEngine` (`private mouth = true` / `setMouth`).
+
+Three things to get right when wiring it up:
+
+- **the default is on, and `bool`'s serde default is `false`.** `Config` carries
+  `#[serde(default)]` at the *struct* level with a `Default` impl, so put
+  `mouth: true` there. A `#[serde(default)]` on the field would quietly take the
+  mouth off every pet that existed before the field did — pin it with a test that
+  parses `{}` and a file from before the field.
+- **the same trap in `PreviewInit`**, which comes from the frontend: use
+  `#[serde(default = "yes")]`, not `default`.
+- **the thumbnails have to follow.** They are frames from the same engine, so pass
+  the flag into the preview init and repaint them when it changes — a bench that
+  keeps grinning while the pet cannot is a lie about the pet.
+- and one piece of painter-side housekeeping that is easy to miss: the settings
+  chips cancel the expression's head turn by shifting the eye matrices
+  (`straightAhead`). The mouth is placed from those eyes, so it has to be shifted by
+  the same amount, or every thumbnail draws its mouth a few units off its face.
+
 ## Porting the Rust twin (Dot only)
 
 Upstream has one engine, so the port ends at step 8. Dot runs the engine twice and
@@ -501,8 +536,9 @@ numbers above are the ones that survived looking at them.
 
 ## Files touched
 
-Twelve files in Dot: seven engine files (three TypeScript, four Rust), one painter,
-one generator, two generated artefacts, and one contact sheet.
+Sixteen files in Dot: seven engine files (three TypeScript, four Rust), one painter,
+one generator, two generated artefacts, one contact sheet, and four for the switch
+(`lib.rs`, `pet.rs`, the settings view and the TS contract test).
 
 | file | what |
 | --- | --- |
@@ -518,3 +554,7 @@ one generator, two generated artefacts, and one contact sheet.
 | `src-tauri/assets/engine-catalogue.json` | regenerated |
 | `src-tauri/tests/engine-golden.json` | regenerated (142 frames) |
 | `src-tauri/examples/faces-sheet.rs` | the contact sheet, for looking |
+| `src-tauri/src/lib.rs` | `Config.mouth`, `PreviewInit.mouth` |
+| `src-tauri/src/pet.rs` | `PetConfig.mouth`, applied in place with the rest of the config |
+| `src/settings/SettingsView.vue` | the `Mouth` row, the preview init, `straightAhead` moves the mouth too |
+| `src/engine.test.ts` | the switch is on by default, and off through a state with its own face |
