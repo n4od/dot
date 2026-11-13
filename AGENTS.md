@@ -182,7 +182,9 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   expression's face is applied (`baseFace` in both engines), never inside a painter.
   States without a face (`thinking`, `alert`, `exclaim`, `sleep`) must set
   `mouth.alpha = 0`, and `burst`/`comet` fade it in with `eyeAlpha`, or the mouth
-  outlives the eyes.
+  outlives the eyes. The port guide — the eight edits, the numbers, the traps, and
+  how the same change lands on upstream `bloub`'s mask-based painter — is
+  `docs/adding-the-mouth.md`.
 - **In the browser view**, `class="hit"` is load-bearing: the click-through test is
   `elementFromPoint(…).closest('.hit')`; renaming or dropping those classes silently
   makes the pet unclickable. They come from `PetFigure`'s `interactive` prop.
