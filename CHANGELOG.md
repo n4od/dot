@@ -7,6 +7,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.1] — 2026-11-14
+
 ### Added
 
 - **The pet yawns when it wakes.** Waking from `Sleep` no longer snaps to `Idle`: the
