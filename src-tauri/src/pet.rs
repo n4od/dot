@@ -50,11 +50,14 @@ const BUSY_MS: u64 = 15;
 const HTCAPTION: usize = 2;
 /// Two clicks within this window count as a double-click.
 const DOUBLE_CLICK_MS: u64 = 320;
+/// Idle time before the pet lies down to sleep.
+const SLEEP_AFTER_MS: u64 = 120_000;
 
-/// Tick of the previous click, and a wink requested by a double-click. The engine
-/// lives on the pet thread, so the window procedure only raises the flag.
+/// Tick of the previous click, and reactions asked for by the window procedure.
+/// The engine lives on the pet thread, so the procedure only raises a flag.
 static LAST_CLICK: AtomicU64 = AtomicU64::new(0);
 static WINK_REQUESTED: AtomicBool = AtomicBool::new(false);
+static WIDE_REQUESTED: AtomicBool = AtomicBool::new(false);
 
 /// The same resting animations the webview scheduler played.
 const EMOTES: [StateId; 10] = [
@@ -165,8 +168,19 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             let mut p = POINT { x: 0, y: 0 };
             GetCursorPos(&mut p);
             let lparam = ((p.y << 16) | (p.x & 0xffff)) as isize;
+            // The OS runs the move loop inside this call, so the pet thread is
+            // frozen while it is dragged. Compare the position before and after:
+            // if it moved this was a drag, and the pet gets a startled look once
+            // it is put down.
+            let mut before: RECT = std::mem::zeroed();
+            GetWindowRect(hwnd, &mut before);
             ReleaseCapture();
             SendMessageW(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, lparam);
+            let mut after: RECT = std::mem::zeroed();
+            GetWindowRect(hwnd, &mut after);
+            if before.left != after.left || before.top != after.top {
+                WIDE_REQUESTED.store(true, Ordering::SeqCst);
+            }
             0
         }
         WM_CLOSE => {
@@ -355,6 +369,8 @@ fn run(
         let mut last_version = version.load(Ordering::Relaxed);
         let mut shown = true;
         let mut saved_pos = (x, y);
+        let mut sleeping = false;
+        let mut last_interaction = start.elapsed().as_millis() as u64;
 
         loop {
             let mut msg: MSG = std::mem::zeroed();
@@ -417,6 +433,11 @@ fn run(
             let now = start.elapsed().as_secs_f64();
             let now_ms = start.elapsed().as_millis() as u64;
 
+            // Read the window rectangle once; the reactions, the gaze and the
+            // position save all want it.
+            let mut rect: RECT = std::mem::zeroed();
+            GetWindowRect(hwnd, &mut rect);
+
             // A config change is rare; the version counter keeps the hot loop
             // from taking the lock on every wake-up.
             let v = version.load(Ordering::Relaxed);
@@ -437,25 +458,63 @@ fn run(
                 wake_until = now_ms + WAKE_MS;
             }
 
-            // A double-click asks for a wink; it takes priority over the schedule.
+            // Reactions. A double-click winks, a drag that put the pet down gets a
+            // startled look, and a long quiet spell sends it to sleep — all on
+            // states the engine already has.
+            let in_window = pos.x >= rect.left
+                && pos.x < rect.right
+                && pos.y >= rect.top
+                && pos.y < rect.bottom;
+            if in_window {
+                last_interaction = now_ms;
+            }
+
             if WINK_REQUESTED.swap(false, Ordering::SeqCst) {
+                sleeping = false;
+                last_interaction = now_ms;
                 engine.set_state(StateId::Wink, now);
                 let duration = catalogue().state_meta(StateId::Wink).duration.max(1.6);
                 emote_ends_at = now + duration;
                 next_emote_at = emote_ends_at + 7.0 + rand01() * 14.0;
             }
-
-            if emote_ends_at > 0.0 {
-                if now >= emote_ends_at {
-                    emote_ends_at = 0.0;
-                    engine.set_state(StateId::Idle, now);
-                }
-            } else if now >= next_emote_at {
-                let id = EMOTES[(rand01() * EMOTES.len() as f64) as usize % EMOTES.len()];
-                engine.set_state(id, now);
-                let duration = catalogue().state_meta(id).duration.max(1.6);
+            if WIDE_REQUESTED.swap(false, Ordering::SeqCst) {
+                sleeping = false;
+                last_interaction = now_ms;
+                engine.set_state(StateId::Wide, now);
+                let duration = catalogue().state_meta(StateId::Wide).duration.max(1.6);
                 emote_ends_at = now + duration;
                 next_emote_at = emote_ends_at + 7.0 + rand01() * 14.0;
+            }
+
+            if sleeping {
+                // Anything in the window — the cursor passing over it, a click —
+                // wakes the pet.
+                if in_window {
+                    sleeping = false;
+                    emote_ends_at = 0.0;
+                    next_emote_at = now + 7.0 + rand01() * 14.0;
+                    engine.set_state(StateId::Idle, now);
+                }
+            } else if emote_ends_at == 0.0
+                && now_ms.saturating_sub(last_interaction) >= SLEEP_AFTER_MS
+            {
+                engine.set_state(StateId::Sleep, now);
+                sleeping = true;
+            }
+
+            if !sleeping {
+                if emote_ends_at > 0.0 {
+                    if now >= emote_ends_at {
+                        emote_ends_at = 0.0;
+                        engine.set_state(StateId::Idle, now);
+                    }
+                } else if now >= next_emote_at {
+                    let id = EMOTES[(rand01() * EMOTES.len() as f64) as usize % EMOTES.len()];
+                    engine.set_state(id, now);
+                    let duration = catalogue().state_meta(id).duration.max(1.6);
+                    emote_ends_at = now + duration;
+                    next_emote_at = emote_ends_at + 7.0 + rand01() * 14.0;
+                }
             }
 
             let busy = emote_ends_at > 0.0 || now_ms < wake_until;
@@ -464,8 +523,6 @@ fn run(
             if now_ms.saturating_sub(last_draw) >= interval {
                 last_draw = now_ms;
 
-                let mut rect: RECT = std::mem::zeroed();
-                GetWindowRect(hwnd, &mut rect);
                 // A drag moves the window while this thread is blocked in the OS
                 // move loop; the first frame after release sees the new position.
                 if let Some(path) = &state_path {

@@ -185,7 +185,9 @@ opaque and everything behind it is genuinely behind it.
 
 ## Roadmap
 
-The plan is in [ROADMAP.md](ROADMAP.md).
+The plan is in [ROADMAP.md](ROADMAP.md). Ideas for the pet's own design — new
+movements, particles, accessories — are in
+[docs/design-roadmap.md](docs/design-roadmap.md).
 
 ## Licence
 

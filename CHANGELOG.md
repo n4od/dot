@@ -15,6 +15,14 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   them through. The planned "idle CPU budget in CI" was dropped: CI has no
   interactive desktop, and CPU measurement is too noisy for a threshold.
 
+- **The pet reacts when you put it down.** A drag that actually moved the window
+  gets a startled look (`Wide`) once it is released; a stray click that did not move
+  it stays a click.
+
+- **The pet sleeps when you leave it alone.** After two quiet minutes it lies down
+  (`Sleep`) and breathes; moving the cursor onto it or clicking wakes it up. Both
+  reactions reuse states the engine already had — no new geometry.
+
 ## [0.4.0] — 2026-11-10
 
 ### Added

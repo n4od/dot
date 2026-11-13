@@ -91,6 +91,12 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   hidden). Window labels are hardcoded (`settings` only).
 - A **double-click** on the pet plays a wink (`DOUBLE_CLICK_MS` in `pet.rs`); a
   single click starts the OS drag.
+- **Reactions live in `pet.rs`, on states the engine already has.** A drag that
+  moved the window raises `WIDE_REQUESTED` from the window procedure (compare the
+  rect across `WM_NCLBUTTONDOWN`) for a startled look; `SLEEP_AFTER_MS` of no cursor
+  inside the pet's rect plays `Sleep` and holds it, and the cursor entering the rect
+  or a click wakes it. Neither adds geometry, so neither touches the painters or the
+  parity suite.
 - `src/bot/` is a frozen copy of `jeremy-prt/bloub` @ `b4bb3c1` (MIT), tests
   included. `bloub/` is a reference snapshot that is gitignored and excluded from
   Vite's watcher — **editing it changes nothing**, including its copy of the test
