@@ -425,6 +425,54 @@ fn draw_dot(pixmap: &mut Pixmap, d: &crate::engine::DotRender, ink: &str, s: f64
     }
 }
 
+/// The mouth: a lip with round ends, filled and stroked with the same path so an
+/// open mouth is a D rather than a wedge. Clipped to the body like the eyes.
+fn draw_mouth(pixmap: &mut Pixmap, frame: &BotFrame, fill: &str, mask: &Mask, s: f64) {
+    let Some(m) = &frame.mouth else { return };
+    let x = ((m.x + DEMI) * s) as f32;
+    let y = ((m.y + DEMI) * s) as f32;
+    let hw = ((m.w * s) / 2.0) as f32;
+    let curve = (m.curve * s) as f32;
+    let open = (m.open * s) as f32;
+    let mut pb = PathBuilder::new();
+    pb.move_to(x - hw, y);
+    pb.quad_to(x, y + 2.0 * curve, x + hw, y);
+    pb.quad_to(x, y + 2.0 * (curve + open), x - hw, y);
+    pb.close();
+    let Some(path) = pb.finish() else { return };
+
+    let alpha = m.alpha * frame.body_alpha;
+    let mut paint = Paint::default();
+    paint.set_color(rgba(fill, alpha));
+    paint.anti_alias = true;
+    pixmap.fill_path(
+        &path,
+        &paint,
+        FillRule::Winding,
+        Transform::identity(),
+        Some(mask),
+    );
+
+    // The stroke is what gives the lip its thickness and rounds the corners; the
+    // fill above is the opening. At `open = 0` the path is degenerate, so this is
+    // the only thing drawn.
+    let stroke = Stroke {
+        width: (m.thickness * s) as f32,
+        line_cap: LineCap::Round,
+        line_join: LineJoin::Round,
+        ..Default::default()
+    };
+    if let Some(outline) = path.stroke(&stroke, 1.0) {
+        pixmap.fill_path(
+            &outline,
+            &paint,
+            FillRule::Winding,
+            Transform::identity(),
+            Some(mask),
+        );
+    }
+}
+
 fn draw_eyes(
     pixmap: &mut Pixmap,
     frame: &BotFrame,
@@ -611,6 +659,7 @@ pub fn paint_into(pixmap: &mut Pixmap, frame: &BotFrame, ink: &str, style: &str)
     }
 
     draw_eyes(pixmap, frame, &surface, &eye_fill, &mask, s);
+    draw_mouth(pixmap, frame, &eye_fill, &mask, s);
 
     if let Some(n) = &frame.notch {
         let mut pb = PathBuilder::new();

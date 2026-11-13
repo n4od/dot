@@ -76,6 +76,16 @@ Each needs `Pose`/`BotFrame` extended in **both** engines and a branch in **both
 painters. This is the branch the style seam avoids on purpose — and why the extra
 styles ended up looking similar.
 
+- [x] **A mouth.** The first element built through that seam, and the template for
+      the rest: `MouthCfg` on the pose (both engines, interpolated), one `MouthFrame`
+      in the contract, one `draw_mouth` per painter. It is data before it is a
+      branch — width, bow, lip thickness and opening — so every expression and
+      emote moves the mouth by numbers alone. Designed in `tools/mouth-sheet.mjs`:
+      five candidates, eight silhouettes, three sizes, and `line`/`grin`/`open` won.
+- [ ] An accessory that hangs off the same anchor (glasses, a scarf).
+- [ ] An outline or drop shadow, which the style seam cannot express (it paints
+      fills, not silhouettes).
+
 ## Phase E — New shapes and colours
 
 - **Colour:** one row in each catalogue; trivial.

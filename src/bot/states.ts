@@ -42,6 +42,47 @@ export interface EyeCfg {
   tilt?: number
 }
 
+export interface MouthCfg {
+  /** largeur du trait de levre, en unites de rayon de boule */
+  w: number
+  /** cambrure : positif = sourire, negatif = moue */
+  curve: number
+  /** epaisseur de la levre */
+  thickness: number
+  /** ouverture sous la levre : 0 = bouche fermee */
+  open: number
+  /** opacite : 0 retire la bouche */
+  alpha: number
+}
+
+/** La bouche au repos — le sourire entrouvert retenu à la revue de design. C'est
+ * le visage que le pet porte quand rien ne se passe, et la forme dont chaque
+ * expression et chaque emote s'écarte. */
+export const REST_MOUTH: MouthCfg = {
+  w: 0.358,
+  curve: 0.069,
+  thickness: 0.041,
+  open: 0.062,
+  alpha: 1
+}
+
+/**
+ * Une bouche, en unités de rayon de boule : largeur, cambrure, ouverture,
+ * épaisseur.
+ *
+ * `curve` positif fait sourire (le milieu de la lèvre descend), négatif fait la
+ * moue ; `open` ouvre sous la lèvre. Les états et les expressions ne changent que
+ * ces nombres, jamais le genre de forme — c'est ce qui permet de passer d'un
+ * sourire à une moue sans que la bouche ne se déchire en route.
+ */
+export const mouth = (w: number, curve: number, open = 0, thickness = 0.041): MouthCfg => ({
+  w,
+  curve,
+  thickness,
+  open,
+  alpha: 1
+})
+
 export interface Pose {
   /** silhouette du corps, en unites de rayon de boule */
   sil: Silhouette
@@ -53,6 +94,8 @@ export interface Pose {
   split: number
   /** [oeil interieur, oeil exterieur] */
   eyes: [EyeCfg, EyeCfg]
+  /** la bouche, meme unite que les yeux : fractions du rayon du corps */
+  mouth: MouthCfg
   /** opacite des yeux : sert aux etats sans visage */
   eyeAlpha: number
   bodyAlpha: number
@@ -76,6 +119,7 @@ function base(over: Partial<Pose> = {}): Pose {
     gaze: { ...REST_GAZE },
     split: EYE_SPLIT,
     eyes: pair(EYE_W, EYE_H),
+    mouth: { ...REST_MOUTH },
     eyeAlpha: 1,
     bodyAlpha: 1,
     dots: [],
@@ -230,6 +274,8 @@ export const STATES: StateDef[] = [
         // la boule DEVIENT le point du milieu : le morph reste continu
         sil: circle(DOT_R * (1 + (DOT_PEAK - 1) * mid), { cx: DOT_X[1]! }),
         eyeAlpha: 0,
+        // pas de visage pendant la réflexion : le corps EST un point
+        mouth: { ...REST_MOUTH, alpha: 0 },
         dots: [0, 2].map((i) => {
           const k = dotPulse(t, i)
           return {
@@ -274,7 +320,9 @@ export const STATES: StateDef[] = [
       base({
         gaze: { yaw: 6.92, pitch: -21.96, roll: 11.6 },
         split: 18.43,
-        eyes: pair(0.356, 0.875)
+        eyes: pair(0.356, 0.875),
+        // surpris : la bouche reste en rond pendant que les yeux s'écarquillent
+        mouth: mouth(0.165, 0.012, 0.18, 0.042)
       })
   },
 
@@ -299,6 +347,7 @@ export const STATES: StateDef[] = [
       return base({
         sil: barItalic({ rot: tilt, cx: x, cy: -0.325 - buzz }),
         eyeAlpha: 0,
+        mouth: { ...REST_MOUTH, alpha: 0 },
         dots: [
           {
             // le point suit l'axe du glyphe, a 0.580 du centre de la barre
@@ -353,6 +402,7 @@ export const STATES: StateDef[] = [
       base({
         sil: barUpright(),
         eyeAlpha: 0,
+        mouth: { ...REST_MOUTH, alpha: 0 },
         dots: [{ x: -0.012, y: 0.526, r: 0.113, opacity: 1 }]
       })
   },
@@ -368,7 +418,8 @@ export const STATES: StateDef[] = [
       base({
         // Rebond vertical mesure : +-0.19 autour de +0.11, periode 0.6 s.
         sil: circle(0.1585, { cy: 0.11 + Math.sin(t * (TAU / 0.6)) * 0.19 }),
-        eyeAlpha: 0
+        eyeAlpha: 0,
+        mouth: { ...REST_MOUTH, alpha: 0 }
       })
   },
 
@@ -539,6 +590,8 @@ export const STATES: StateDef[] = [
       return base({
         sil: circle(collapse + (1 - collapse) * regrow),
         eyeAlpha: clamp((t - 1.85) / 0.4),
+        // le visage revient d'un bloc : la bouche se rallume avec les yeux
+        mouth: { ...REST_MOUTH, alpha: clamp((t - 1.85) / 0.4) },
         dots: particles(t, 1),
         dotsBehind: true
       })
@@ -566,6 +619,7 @@ export const STATES: StateDef[] = [
           cy: Math.sin(clamp(t / 1.7) * Math.PI) * 0.035
         }),
         eyeAlpha: clamp((t - 2) / 0.35),
+        mouth: { ...REST_MOUTH, alpha: clamp((t - 2) / 0.35) },
         arcs: COMET_RIBBONS.map((s, i) => ({ id: `cm${i}`, seed: s, t, opacity: fade }))
       })
     }

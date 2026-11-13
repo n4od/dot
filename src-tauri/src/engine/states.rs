@@ -24,6 +24,58 @@ pub struct Notif {
     pub notch: f64,
 }
 
+/// The mouth, in the same units as the eyes: fractions of the body radius.
+///
+/// `curve` is how far the lip bows down (negative bows it up, for a frown) and
+/// `open` is how far the mouth hangs below the lip — at `open = 0` the two curves
+/// coincide and the painter draws only the lip, a rounded line. Every field
+/// interpolates, so a mouth can part without swapping shapes.
+#[derive(Clone, Copy, Debug, Deserialize)]
+pub struct MouthCfg {
+    pub w: f64,
+    pub curve: f64,
+    pub thickness: f64,
+    pub open: f64,
+    pub alpha: f64,
+}
+
+impl Default for MouthCfg {
+    fn default() -> Self {
+        Self::REST
+    }
+}
+
+impl MouthCfg {
+    /// The resting mouth: the parted grin from the design gate. It is the face
+    /// the pet wears when nothing is happening, and the shape every expression
+    /// and emote moves away from.
+    pub const REST: MouthCfg = MouthCfg {
+        w: 0.358,
+        curve: 0.069,
+        thickness: 0.041,
+        open: 0.062,
+        alpha: 1.0,
+    };
+
+    /// The same shape at another opacity — a state with no face at all, or one
+    /// whose face fades in with its eyes.
+    pub fn with_alpha(mut self, alpha: f64) -> Self {
+        self.alpha = alpha;
+        self
+    }
+}
+
+/// A mouth of a given width, bow, opening and lip, fully opaque.
+fn mouth(w: f64, curve: f64, open: f64, thickness: f64) -> MouthCfg {
+    MouthCfg {
+        w,
+        curve,
+        thickness,
+        open,
+        alpha: 1.0,
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct Pose {
     pub sil: Silhouette,
@@ -32,6 +84,7 @@ pub struct Pose {
     pub gaze: HeadGaze,
     pub split: f64,
     pub eyes: [EyeCfg; 2],
+    pub mouth: MouthCfg,
     pub eye_alpha: f64,
     pub body_alpha: f64,
     pub dots: Vec<DotRender>,
@@ -62,6 +115,16 @@ pub fn lerp_eye_cfg(a: &EyeCfg, b: &EyeCfg, t: f64) -> EyeCfg {
     }
 }
 
+pub fn lerp_mouth_cfg(a: &MouthCfg, b: &MouthCfg, t: f64) -> MouthCfg {
+    MouthCfg {
+        w: super::math::lerp(a.w, b.w, t),
+        curve: super::math::lerp(a.curve, b.curve, t),
+        thickness: super::math::lerp(a.thickness, b.thickness, t),
+        open: super::math::lerp(a.open, b.open, t),
+        alpha: super::math::lerp(a.alpha, b.alpha, t),
+    }
+}
+
 pub fn base() -> Pose {
     Pose {
         sil: Silhouette::circle(1.0),
@@ -70,6 +133,7 @@ pub fn base() -> Pose {
         gaze: REST_GAZE,
         split: EYE_SPLIT,
         eyes: pair(EYE_W, EYE_H),
+        mouth: MouthCfg::REST,
         eye_alpha: 1.0,
         body_alpha: 1.0,
         dots: Vec::new(),
@@ -144,6 +208,8 @@ pub fn pose(id: StateId, t: f64, cat: &Catalogue) -> Pose {
                 0.0,
             );
             p.eye_alpha = 0.0;
+            // no face at all while thinking: the body *is* a dot
+            p.mouth = MouthCfg::REST.with_alpha(0.0);
             p.dots = [0.0_f64, 2.0]
                 .iter()
                 .map(|&i| {
@@ -181,6 +247,8 @@ pub fn pose(id: StateId, t: f64, cat: &Catalogue) -> Pose {
             };
             p.split = 18.43;
             p.eyes = pair(0.356, 0.875);
+            // startled: the mouth stays round while the eyes go wide
+            p.mouth = mouth(0.165, 0.012, 0.18, 0.042);
             p
         }
 
@@ -194,6 +262,7 @@ pub fn pose(id: StateId, t: f64, cat: &Catalogue) -> Pose {
             let mut p = base();
             p.sil = bar_italic(tilt, x, -0.325 - buzz, cat);
             p.eye_alpha = 0.0;
+            p.mouth = MouthCfg::REST.with_alpha(0.0);
             p.dots = vec![DotRender {
                 x: x - tilt.sin() * 0.58,
                 y: -0.325 + tilt.cos() * 0.58 + buzz * 2.8,
@@ -233,6 +302,7 @@ pub fn pose(id: StateId, t: f64, cat: &Catalogue) -> Pose {
             let mut p = base();
             p.sil = bar_upright(cat);
             p.eye_alpha = 0.0;
+            p.mouth = MouthCfg::REST.with_alpha(0.0);
             p.dots = vec![DotRender {
                 x: -0.012,
                 y: 0.526,
@@ -247,6 +317,7 @@ pub fn pose(id: StateId, t: f64, cat: &Catalogue) -> Pose {
             let mut p = base();
             p.sil = circle(0.1585, 0.0, 0.11 + (t * (TAU / 0.6)).sin() * 0.19);
             p.eye_alpha = 0.0;
+            p.mouth = MouthCfg::REST.with_alpha(0.0);
             p
         }
 
@@ -364,6 +435,8 @@ pub fn pose(id: StateId, t: f64, cat: &Catalogue) -> Pose {
             let mut p = base();
             p.sil = circle(collapse + (1.0 - collapse) * regrow, 0.0, 0.0);
             p.eye_alpha = clamp((t - 1.85) / 0.4);
+            // the face comes back in one piece: the mouth lights up with the eyes
+            p.mouth = MouthCfg::REST.with_alpha(p.eye_alpha);
             p.dots = particles(t, 1.0);
             p.dots_behind = true;
             p
@@ -380,6 +453,7 @@ pub fn pose(id: StateId, t: f64, cat: &Catalogue) -> Pose {
                 (clamp(t / 1.7) * std::f64::consts::PI).sin() * 0.035,
             );
             p.eye_alpha = clamp((t - 2.0) / 0.35);
+            p.mouth = MouthCfg::REST.with_alpha(p.eye_alpha);
             p.arcs = cat
                 .comet
                 .iter()

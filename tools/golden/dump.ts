@@ -128,7 +128,14 @@ const catalogue = {
     id: e.id,
     gaze: e.gaze,
     split: e.split,
-    eyes: e.eyes.map((eye) => ({ w: eye.w, h: eye.h, open: eye.open, tilt: eye.tilt ?? 0 }))
+    eyes: e.eyes.map((eye) => ({ w: eye.w, h: eye.h, open: eye.open, tilt: eye.tilt ?? 0 })),
+    mouth: {
+      w: e.mouth.w,
+      curve: e.mouth.curve,
+      thickness: e.mouth.thickness,
+      open: e.mouth.open,
+      alpha: e.mouth.alpha
+    }
   })),
   states: STATES.map((d) => ({
     id: d.id,

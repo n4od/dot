@@ -98,7 +98,12 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   or a click wakes it. Neither adds geometry, so neither touches the painters or the
   parity suite.
 - `src/bot/` is a frozen copy of `jeremy-prt/bloub` @ `b4bb3c1` (MIT), tests
-  included. `bloub/` is a reference snapshot that is gitignored and excluded from
+  included — **with one documented fork: the mouth.** `MouthCfg`/`REST_MOUTH` in
+  `states.ts`, the `mouth` field on `Pose` and the `MouthFrame` in `engine.ts`, and
+  the per-expression/per-state values in `expressions.ts` and `states.ts` are ours,
+  not upstream's. Everything else in the folder is untouched upstream code; if
+  upstream moves, re-copy by hand and re-apply the mouth on top.
+  `bloub/` is a reference snapshot that is gitignored and excluded from
   Vite's watcher — **editing it changes nothing**, including its copy of the test
   suite, which is never run. Re-copy files by hand if upstream is updated.
 - **The engine exists twice on purpose, joined by a contract.** `src/bot/` is the
@@ -162,6 +167,22 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   no paper backing disc — on a transparent window a hole shows the wallpaper and the
   orbits behind the body. `src/contrast.ts` holds the preview's eye fill;
   `src-tauri/src/render.rs` mirrors it for the native pet.
+- **The mouth is data, not a branch** — the first element added through the style
+  seam, and the template for an accessory. `MouthCfg` (width, bow, lip thickness,
+  opening, alpha) rides on the pose in both engines and interpolates like the eyes,
+  so an expression can part a mouth without changing its kind. The frame carries one
+  `MouthFrame` in viewBox units, anchored off the eyes the engine actually placed
+  (three quarters of their sideways shift, 36 % of the way down to the rim — that
+  held on all eight silhouettes, so there is no per-shape table). Both painters
+  **fill and stroke the same closed path** — the lip quadratic, then the opening back
+  to the start, round caps and joins — so `open = 0` is a rounded line and `open > 0`
+  a D. It is drawn in the eyes' contrast colour and clipped to the body mask like
+  them. `MouthCfg::REST` / `REST_MOUTH` is the resting grin (`w 0.358`, `curve
+  0.069`, `open 0.062`); expressions carry their own and it is applied wherever the
+  expression's face is applied (`baseFace` in both engines), never inside a painter.
+  States without a face (`thinking`, `alert`, `exclaim`, `sleep`) must set
+  `mouth.alpha = 0`, and `burst`/`comet` fade it in with `eyeAlpha`, or the mouth
+  outlives the eyes.
 - **In the browser view**, `class="hit"` is load-bearing: the click-through test is
   `elementFromPoint(…).closest('.hit')`; renaming or dropping those classes silently
   makes the pet unclickable. They come from `PetFigure`'s `interactive` prop.

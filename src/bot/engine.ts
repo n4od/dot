@@ -20,10 +20,28 @@ export interface RenderedEye {
   alpha: number
 }
 
+/**
+ * La bouche, en unites de viewBox. Le peintre construit la forme a partir de ces
+ * nombres : la levre est une quadratique entre `(-w/2, 0)` et `(w/2, 0)` qui
+ * plonge de `curve`, epaisse de `thickness`, et `open` ajoute l'ouverture
+ * dessous. A `open = 0` les deux courbes se confondent et il ne reste que la
+ * levre.
+ */
+export interface MouthFrame {
+  x: number
+  y: number
+  w: number
+  curve: number
+  thickness: number
+  open: number
+  alpha: number
+}
+
 export interface BotFrame {
   bodyPath: string
   bodyAlpha: number
   eyes: RenderedEye[]
+  mouth: MouthFrame | null
   dots: DotRender[]
   /** true = les points passent derriere le corps (particules de l'eclatement) */
   dotsBehind: boolean
@@ -89,6 +107,14 @@ const lerpEye = (a: Pose['eyes'][number], b: Pose['eyes'][number], t: number) =>
   tilt: lerp(a.tilt ?? 0, b.tilt ?? 0, t)
 })
 
+const lerpMouth = (a: Pose['mouth'], b: Pose['mouth'], t: number) => ({
+  w: lerp(a.w, b.w, t),
+  curve: lerp(a.curve, b.curve, t),
+  thickness: lerp(a.thickness, b.thickness, t),
+  open: lerp(a.open, b.open, t),
+  alpha: lerp(a.alpha, b.alpha, t)
+})
+
 /** Interpolation de deux poses. Le decor se croise en opacite, pas en geometrie. */
 function blendPose(a: Pose, b: Pose, t: number): Pose {
   const out = 1 - t
@@ -103,6 +129,7 @@ function blendPose(a: Pose, b: Pose, t: number): Pose {
     },
     split: lerp(a.split, b.split, t),
     eyes: [lerpEye(a.eyes[0], b.eyes[0], t), lerpEye(a.eyes[1], b.eyes[1], t)],
+    mouth: lerpMouth(a.mouth, b.mouth, t),
     eyeAlpha: lerp(a.eyeAlpha, b.eyeAlpha, t),
     bodyAlpha: lerp(a.bodyAlpha, b.bodyAlpha, t),
     dots: [
@@ -278,7 +305,7 @@ export class BotEngine {
       pose = { ...pose, sil: { ...pose.sil, radii: shape } }
     }
     if (def.baseFace && expr) {
-      pose = { ...pose, gaze: expr.gaze, split: expr.split, eyes: expr.eyes }
+      pose = { ...pose, gaze: expr.gaze, split: expr.split, eyes: expr.eyes, mouth: expr.mouth }
     }
     return pose
   }
@@ -527,6 +554,34 @@ export class BotEngine {
       }
     }
 
+    // --- bouche -----------------------------------------------------------
+    // Ancrée sur les yeux que le moteur a réellement placés : elle tourne avec
+    // la tête, mais trois quarts moins loin que les yeux, et se pose à 36 % du
+    // chemin entre la ligne des yeux et le bord. Ça tient sur les huit
+    // silhouettes, donc pas de table de décalage propre à la bouche.
+    const pair = eyePoses(gaze, R, pose.split)
+    let mx = 0
+    let my = 0
+    for (const e of pair) {
+      const fit = bodyRadius(e.x, e.y)
+      mx += e.x * fit
+      my += e.y * fit
+    }
+    mx /= 2
+    my /= 2
+    const mouth =
+      pose.mouth.alpha > 0.01
+        ? {
+            x: mx * 0.75 + (offX + decalage.x) * R,
+            y: my + 0.36 * (R - my) + (offY + decalage.y) * R,
+            w: pose.mouth.w * R,
+            curve: pose.mouth.curve * R,
+            thickness: pose.mouth.thickness * R,
+            open: pose.mouth.open * R,
+            alpha: pose.mouth.alpha
+          }
+        : null
+
     // --- decor ------------------------------------------------------------
     const dots = pose.dots
       .filter((p) => p.opacity > 0.01 && p.r > 0.0005)
@@ -543,6 +598,7 @@ export class BotEngine {
       bodyPath,
       bodyAlpha: pose.bodyAlpha,
       eyes,
+      mouth,
       dots,
       dotsBehind: pose.dotsBehind,
       // Les etats declarent des arcs en unites de rayon de boule ; le moteur

@@ -1,6 +1,6 @@
 import { EYE_H, EYE_SPLIT, EYE_W, REST_GAZE, type HeadGaze } from './face'
 import { lerp } from './math'
-import type { EyeCfg } from './states'
+import { REST_MOUTH, mouth, type EyeCfg, type MouthCfg } from './states'
 
 /**
  * Expression de repos du bot.
@@ -45,6 +45,11 @@ export interface BotExpression {
   gaze: HeadGaze
   split: number
   eyes: [EyeCfg, EyeCfg]
+  /**
+   * La bouche de l'expression. Elle se pose comme les yeux, et comme eux elle est
+   * interpolée : une humeur ne fait pas claquer une bouche, elle l'amène.
+   */
+  mouth: MouthCfg
 }
 
 /** `tilt` en degrés, positif = le haut de la gélule part vers la droite. */
@@ -62,65 +67,78 @@ export const EXPRESSIONS: BotExpression[] = [
     id: 'neutre',
     gaze: { ...REST_GAZE },
     split: EYE_SPLIT,
-    eyes: [eye(EYE_W, EYE_H), eye(EYE_W, EYE_H)]
+    eyes: [eye(EYE_W, EYE_H), eye(EYE_W, EYE_H)],
+    mouth: { ...REST_MOUTH }
   },
   {
     id: 'attentif',
     gaze: { yaw: 4, pitch: 5, roll: -4 },
     split: 16,
-    eyes: pair(0.21, 0.44)
+    eyes: pair(0.21, 0.44),
+    // à l'écoute : le sourire se ferme et se rétrécit
+    mouth: mouth(0.3, 0.048, 0.018)
   },
   {
     id: 'surpris',
     gaze: { yaw: 3, pitch: -3, roll: 0 },
     split: 19,
-    eyes: pair(0.45, 0.47)
+    eyes: pair(0.45, 0.47),
+    mouth: mouth(0.155, 0.012, 0.17, 0.042)
   },
   {
     id: 'excite',
     gaze: { yaw: 6, pitch: -14, roll: 0 },
     split: 19.5,
-    eyes: pair(0.4, 0.56, -10)
+    eyes: pair(0.4, 0.56, -10),
+    mouth: mouth(0.375, 0.072, 0.13)
   },
   {
     // yeux plissés en arc : les hauts convergent légèrement
     id: 'heureux',
     gaze: { yaw: 5, pitch: 9, roll: 0 },
     split: 17,
-    eyes: pair(0.27, 0.17, 14)
+    eyes: pair(0.27, 0.17, 14),
+    mouth: mouth(0.345, 0.062, 0.045)
   },
   {
     id: 'hilare',
     gaze: { yaw: 4, pitch: 14, roll: 0 },
     split: 18,
-    eyes: pair(0.34, 0.13, 20)
+    eyes: pair(0.34, 0.13, 20),
+    mouth: mouth(0.4, 0.082, 0.155, 0.046)
   },
   {
     // hauts des yeux qui convergent fort vers le centre + yeux étrécis
     id: 'colere',
     gaze: { yaw: 3, pitch: 7, roll: 0 },
     split: 17,
-    eyes: pair(0.34, 0.15, 30)
+    eyes: pair(0.34, 0.15, 30),
+    // la moue : la lèvre remonte au milieu, les coins restent bas
+    mouth: mouth(0.3, -0.048, 0, 0.046)
   },
   {
     // l'inverse : les hauts divergent, et le regard tombe
     id: 'triste',
     gaze: { yaw: 3, pitch: -13, roll: 0 },
     split: 16,
-    eyes: pair(0.22, 0.4, -28)
+    eyes: pair(0.22, 0.4, -28),
+    mouth: mouth(0.245, -0.036)
   },
   {
     id: 'effraye',
     gaze: { yaw: 2, pitch: -20, roll: 0 },
     split: 20.5,
-    eyes: pair(0.4, 0.6)
+    eyes: pair(0.4, 0.6),
+    mouth: mouth(0.17, 0, 0.2, 0.042)
   },
   {
     // un œil franchement plus fermé que l'autre
     id: 'mefiant',
     gaze: { yaw: 12, pitch: 6, roll: -6 },
     split: 16,
-    eyes: [eye(0.21, 0.4), eye(0.22, 0.15)]
+    eyes: [eye(0.21, 0.4), eye(0.22, 0.15)],
+    // un trait pincé, à peine descendu d'un côté
+    mouth: mouth(0.265, -0.012, 0, 0.04)
   },
   {
     // asymétrique sur les deux axes : tailles ET inclinaisons dépareillées.
@@ -129,33 +147,39 @@ export const EXPRESSIONS: BotExpression[] = [
     id: 'confus',
     gaze: { yaw: -14, pitch: 3, roll: 8 },
     split: 16.5,
-    eyes: [eye(0.2, 0.44, -18), eye(0.28, 0.17, 14)]
+    eyes: [eye(0.2, 0.44, -18), eye(0.28, 0.17, 14)],
+    mouth: mouth(0.225, 0.012, 0.03, 0.04)
   },
   {
     // la tête penche : c'est le roulis qui porte la curiosité
     id: 'curieux',
     gaze: { yaw: 16, pitch: -9, roll: -15 },
     split: 16.5,
-    eyes: [eye(0.24, 0.46, -8), eye(0.2, 0.38, -8)]
+    eyes: [eye(0.24, 0.46, -8), eye(0.2, 0.38, -8)],
+    mouth: mouth(0.15, 0.008, 0.125)
   },
   {
     id: 'fier',
     gaze: { yaw: 5, pitch: 17, roll: 0 },
     split: 17,
-    eyes: pair(0.3, 0.15, 18)
+    eyes: pair(0.3, 0.15, 18),
+    mouth: mouth(0.335, 0.042, 0.02, 0.043)
   },
   {
     id: 'timide',
     gaze: { yaw: -19, pitch: -14, roll: -7 },
     split: 14,
-    eyes: pair(0.17, 0.3)
+    eyes: pair(0.17, 0.3),
+    // minuscule : c'est le regard qui fuit qui fait la timidité
+    mouth: mouth(0.195, 0.036, 0, 0.038)
   },
   {
     // fentes horizontales et regard qui part sur le côté
     id: 'blase',
     gaze: { yaw: -22, pitch: 2, roll: 0 },
     split: 16,
-    eyes: pair(0.3, 0.12)
+    eyes: pair(0.3, 0.12),
+    mouth: mouth(0.3, -0.006, 0, 0.036)
   },
   {
     // paupières à moitié tombées : on passe par `open`, donc l'écrasement
@@ -163,7 +187,9 @@ export const EXPRESSIONS: BotExpression[] = [
     id: 'somnolent',
     gaze: { yaw: 6, pitch: -9, roll: -3 },
     split: 16,
-    eyes: pair(0.2, 0.42, 0, 0.42)
+    eyes: pair(0.2, 0.42, 0, 0.42),
+    // entrouverte et molle : le souffle du sommeil
+    mouth: mouth(0.185, 0.008, 0.055, 0.042)
   }
 ]
 
@@ -187,6 +213,15 @@ export function blendExpression(a: BotExpression, b: BotExpression, t: number): 
       roll: lerp(a.gaze.roll, b.gaze.roll, t)
     },
     split: lerp(a.split, b.split, t),
-    eyes: [lerpEyeCfg(a.eyes[0], b.eyes[0], t), lerpEyeCfg(a.eyes[1], b.eyes[1], t)]
+    eyes: [lerpEyeCfg(a.eyes[0], b.eyes[0], t), lerpEyeCfg(a.eyes[1], b.eyes[1], t)],
+    mouth: lerpMouthCfg(a.mouth, b.mouth, t)
   }
 }
+
+const lerpMouthCfg = (a: MouthCfg, b: MouthCfg, t: number): MouthCfg => ({
+  w: lerp(a.w, b.w, t),
+  curve: lerp(a.curve, b.curve, t),
+  thickness: lerp(a.thickness, b.thickness, t),
+  open: lerp(a.open, b.open, t),
+  alpha: lerp(a.alpha, b.alpha, t)
+})

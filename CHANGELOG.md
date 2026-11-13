@@ -9,6 +9,19 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
+- **A mouth.** The pet has a face below its eyes at last. One closed path — a lip
+  curve and the opening beneath it — filled *and* stroked, so a closed mouth is a
+  rounded line and an open one is a D rather than a wedge, and every value
+  interpolates: an expression can part the mouth without swapping shapes. The
+  resting face is the parted grin from the design gate (`w 0.358`, `curve 0.069`,
+  `open 0.062`); all sixteen expressions carry their own mouth (frowns for anger
+  and sadness, a round "o" for surprise and fear, the widest grin for `hilare`), and
+  the emoting states do too — `Wide` is startled, `thinking`/`alert`/`exclaim`/
+  `sleep` have no face at all, and the face fades back in with the eyes on `Burst`
+  and `Comet`. Both painters consume the same numbers: `render.rs` fills and
+  strokes in tiny-skia, `PetFigure.vue` in SVG, both clipped to the body mask and
+  both in the contrast colour the eyes use.
+
 - **A repeatable click-through check.** `render::body_contains` has unit tests, and
   `tools/check-click-through.ps1` drives the real cursor, reads the window's
   `WS_EX_TRANSPARENT` bit, and asserts the body takes clicks while the corners pass

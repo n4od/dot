@@ -25,7 +25,7 @@ use expressions::{blend_expression, Expression};
 use face::{blink_scale, eye_poses, liveliness, HeadGaze};
 use math::{clamp, ease_out_quint, lerp, r2};
 use shape::{blend, capsule_path, closed_path, radius_at_angle, to_points, Silhouette};
-use states::{lerp_eye_cfg, pose, Pose};
+use states::{lerp_eye_cfg, lerp_mouth_cfg, pose, Pose};
 
 macro_rules! id_enum {
     ($name:ident { $($variant:ident => $id:literal),+ $(,)? }) => {
@@ -130,6 +130,10 @@ pub struct ExprDef {
     pub gaze: HeadGaze,
     pub split: f64,
     pub eyes: [states::EyeCfg; 2],
+    /// Absent from a catalogue written before mouths existed: that pet keeps the
+    /// resting mouth rather than failing to load.
+    #[serde(default)]
+    pub mouth: states::MouthCfg,
 }
 
 #[derive(Debug, Deserialize)]
@@ -309,6 +313,20 @@ pub struct NotifFrame {
     pub r: f64,
 }
 
+#[derive(Clone, Copy, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MouthFrame {
+    /// Centre of the lip line, in viewBox units.
+    pub x: f64,
+    pub y: f64,
+    /// Lip width, bow, thickness and opening, all in viewBox units.
+    pub w: f64,
+    pub curve: f64,
+    pub thickness: f64,
+    pub open: f64,
+    pub alpha: f64,
+}
+
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BotFrame {
@@ -318,6 +336,7 @@ pub struct BotFrame {
     pub body_points: Vec<Point>,
     pub body_alpha: f64,
     pub eyes: Vec<RenderedEye>,
+    pub mouth: Option<MouthFrame>,
     pub dots: Vec<DotRender>,
     pub dots_behind: bool,
     pub arcs: Vec<ArcRender>,
@@ -400,6 +419,7 @@ fn blend_pose(a: &Pose, b: &Pose, t: f64) -> Pose {
             lerp_eye_cfg(&a.eyes[0], &b.eyes[0], t),
             lerp_eye_cfg(&a.eyes[1], &b.eyes[1], t),
         ],
+        mouth: lerp_mouth_cfg(&a.mouth, &b.mouth, t),
         eye_alpha: lerp(a.eye_alpha, b.eye_alpha, t),
         body_alpha: lerp(a.body_alpha, b.body_alpha, t),
         dots,
@@ -588,6 +608,7 @@ impl BotEngine {
                 p.gaze = e.gaze;
                 p.split = e.split;
                 p.eyes = e.eyes;
+                p.mouth = e.mouth;
             }
         }
         p
@@ -731,6 +752,35 @@ impl BotEngine {
         let body_points = to_points(&sil, r);
         let body_path = closed_path(&body_points, 1.0 / 6.0);
 
+        // --- mouth --------------------------------------------------------
+        // Anchored to the eyes the engine actually placed: it turns with the
+        // head, but only three quarters as far as the eyes do, and it sits 36%
+        // of the way from the eye line down to the rim. That held on all eight
+        // silhouettes, so a mouth needs no per-shape table of its own.
+        let pair = eye_poses(&gaze, r, p.split);
+        let mut mx = 0.0;
+        let mut my = 0.0;
+        for e in &pair {
+            let fit = radius_at_angle(&p.sil.radii, e.y.atan2(e.x) - p.sil.rot);
+            mx += e.x * fit;
+            my += e.y * fit;
+        }
+        mx /= 2.0;
+        my /= 2.0;
+        let mouth = if p.mouth.alpha > 0.01 {
+            Some(MouthFrame {
+                x: mx * 0.75 + (off_x + decalage.x) * r,
+                y: my + 0.36 * (r - my) + (off_y + decalage.y) * r,
+                w: p.mouth.w * r,
+                curve: p.mouth.curve * r,
+                thickness: p.mouth.thickness * r,
+                open: p.mouth.open * r,
+                alpha: p.mouth.alpha,
+            })
+        } else {
+            None
+        };
+
         // --- eyes ---------------------------------------------------------
         let mut eyes = Vec::new();
         if p.eye_alpha > 0.01 {
@@ -816,6 +866,7 @@ impl BotEngine {
             body_points,
             body_alpha: p.body_alpha,
             eyes,
+            mouth,
             dots,
             dots_behind: p.dots_behind,
             arcs,

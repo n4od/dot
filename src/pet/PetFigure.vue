@@ -51,6 +51,20 @@ const R = RAYON
 const uid = Math.random().toString(36).slice(2, 8)
 const clipId = `pet-clip-${uid}`
 
+/**
+ * The mouth is two quadratics: the lip, then the opening back to the start. At
+ * `open = 0` the two coincide, so only the stroke shows — a line with round ends.
+ * Filled *and* stroked with the same path, an open mouth is a D, not a wedge.
+ */
+const mouthPath = computed(() => {
+  const m = props.frame.mouth
+  if (!m) return ''
+  const hw = m.w / 2
+  const top = `Q ${m.x} ${m.y + 2 * m.curve} ${m.x + hw} ${m.y}`
+  const back = `Q ${m.x} ${m.y + 2 * (m.curve + m.open)} ${m.x - hw} ${m.y}`
+  return `M ${m.x - hw} ${m.y} ${top} ${back} Z`
+})
+
 function dotAttrs(dot: BotFrame['dots'][number]) {
   // On a transparent window there is no paper colour to fade towards, so depth
   // is expressed as opacity rather than as a blend into the background.
@@ -184,6 +198,16 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
           :cy="frame.notch.y"
           :r="frame.notch.r"
           :fill="eyeFill"
+        />
+        <path
+          v-if="frame.mouth"
+          :d="mouthPath"
+          :opacity="frame.mouth.alpha"
+          :fill="eyeFill"
+          :stroke="eyeFill"
+          :stroke-width="frame.mouth.thickness"
+          stroke-linecap="round"
+          stroke-linejoin="round"
         />
       </g>
     </g>

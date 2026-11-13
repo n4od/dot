@@ -827,7 +827,14 @@
           "open": 1,
           "tilt": 0
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.358,
+        "curve": 0.069,
+        "thickness": 0.041,
+        "open": 0.062,
+        "alpha": 1
+      }
     },
     {
       "id": "attentif",
@@ -850,7 +857,14 @@
           "open": 1,
           "tilt": 0
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.3,
+        "curve": 0.048,
+        "thickness": 0.041,
+        "open": 0.018,
+        "alpha": 1
+      }
     },
     {
       "id": "surpris",
@@ -873,7 +887,14 @@
           "open": 1,
           "tilt": 0
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.155,
+        "curve": 0.012,
+        "thickness": 0.042,
+        "open": 0.17,
+        "alpha": 1
+      }
     },
     {
       "id": "excite",
@@ -896,7 +917,14 @@
           "open": 1,
           "tilt": 10
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.375,
+        "curve": 0.072,
+        "thickness": 0.041,
+        "open": 0.13,
+        "alpha": 1
+      }
     },
     {
       "id": "heureux",
@@ -919,7 +947,14 @@
           "open": 1,
           "tilt": -14
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.345,
+        "curve": 0.062,
+        "thickness": 0.041,
+        "open": 0.045,
+        "alpha": 1
+      }
     },
     {
       "id": "hilare",
@@ -942,7 +977,14 @@
           "open": 1,
           "tilt": -20
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.4,
+        "curve": 0.082,
+        "thickness": 0.046,
+        "open": 0.155,
+        "alpha": 1
+      }
     },
     {
       "id": "colere",
@@ -965,7 +1007,14 @@
           "open": 1,
           "tilt": -30
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.3,
+        "curve": -0.048,
+        "thickness": 0.046,
+        "open": 0,
+        "alpha": 1
+      }
     },
     {
       "id": "triste",
@@ -988,7 +1037,14 @@
           "open": 1,
           "tilt": 28
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.245,
+        "curve": -0.036,
+        "thickness": 0.041,
+        "open": 0,
+        "alpha": 1
+      }
     },
     {
       "id": "effraye",
@@ -1011,7 +1067,14 @@
           "open": 1,
           "tilt": 0
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.17,
+        "curve": 0,
+        "thickness": 0.042,
+        "open": 0.2,
+        "alpha": 1
+      }
     },
     {
       "id": "mefiant",
@@ -1034,7 +1097,14 @@
           "open": 1,
           "tilt": 0
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.265,
+        "curve": -0.012,
+        "thickness": 0.04,
+        "open": 0,
+        "alpha": 1
+      }
     },
     {
       "id": "confus",
@@ -1057,7 +1127,14 @@
           "open": 1,
           "tilt": 14
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.225,
+        "curve": 0.012,
+        "thickness": 0.04,
+        "open": 0.03,
+        "alpha": 1
+      }
     },
     {
       "id": "curieux",
@@ -1080,7 +1157,14 @@
           "open": 1,
           "tilt": -8
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.15,
+        "curve": 0.008,
+        "thickness": 0.041,
+        "open": 0.125,
+        "alpha": 1
+      }
     },
     {
       "id": "fier",
@@ -1103,7 +1187,14 @@
           "open": 1,
           "tilt": -18
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.335,
+        "curve": 0.042,
+        "thickness": 0.043,
+        "open": 0.02,
+        "alpha": 1
+      }
     },
     {
       "id": "timide",
@@ -1126,7 +1217,14 @@
           "open": 1,
           "tilt": 0
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.195,
+        "curve": 0.036,
+        "thickness": 0.038,
+        "open": 0,
+        "alpha": 1
+      }
     },
     {
       "id": "blase",
@@ -1149,7 +1247,14 @@
           "open": 1,
           "tilt": 0
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.3,
+        "curve": -0.006,
+        "thickness": 0.036,
+        "open": 0,
+        "alpha": 1
+      }
     },
     {
       "id": "somnolent",
@@ -1172,7 +1277,14 @@
           "open": 0.42,
           "tilt": 0
         }
-      ]
+      ],
+      "mouth": {
+        "w": 0.185,
+        "curve": 0.008,
+        "thickness": 0.042,
+        "open": 0.055,
+        "alpha": 1
+      }
     }
   ],
   "states": [
