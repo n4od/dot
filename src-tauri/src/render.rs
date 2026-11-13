@@ -441,17 +441,16 @@ fn draw_mouth(pixmap: &mut Pixmap, frame: &BotFrame, fill: &str, mask: &Mask, s:
     pb.close();
     let Some(path) = pb.finish() else { return };
 
+    // The mouth is canted to the eye line, so that a head with its roll on reads
+    // as tilted rather than as a level mouth under a crooked face. Turned about
+    // its own centre, which keeps the anchor exactly where the engine put it.
+    let turn = Transform::from_rotate_at(m.rot as f32, x, y);
+
     let alpha = m.alpha * frame.body_alpha;
     let mut paint = Paint::default();
     paint.set_color(rgba(fill, alpha));
     paint.anti_alias = true;
-    pixmap.fill_path(
-        &path,
-        &paint,
-        FillRule::Winding,
-        Transform::identity(),
-        Some(mask),
-    );
+    pixmap.fill_path(&path, &paint, FillRule::Winding, turn, Some(mask));
 
     // The stroke is what gives the lip its thickness and rounds the corners; the
     // fill above is the opening. At `open = 0` the path is degenerate, so this is
@@ -463,13 +462,7 @@ fn draw_mouth(pixmap: &mut Pixmap, frame: &BotFrame, fill: &str, mask: &Mask, s:
         ..Default::default()
     };
     if let Some(outline) = path.stroke(&stroke, 1.0) {
-        pixmap.fill_path(
-            &outline,
-            &paint,
-            FillRule::Winding,
-            Transform::identity(),
-            Some(mask),
-        );
+        pixmap.fill_path(&outline, &paint, FillRule::Winding, turn, Some(mask));
     }
 }
 

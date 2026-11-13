@@ -30,6 +30,8 @@ export interface RenderedEye {
 export interface MouthFrame {
   x: number
   y: number
+  /** de combien la bouche est inclinee, en degres, sur la ligne des yeux */
+  rot: number
   w: number
   curve: number
   thickness: number
@@ -560,20 +562,29 @@ export class BotEngine {
     // chemin entre la ligne des yeux et le bord. Ça tient sur les huit
     // silhouettes, donc pas de table de décalage propre à la bouche.
     const pair = eyePoses(gaze, R, pose.split)
-    let mx = 0
-    let my = 0
-    for (const e of pair) {
-      const fit = bodyRadius(e.x, e.y)
-      mx += e.x * fit
-      my += e.y * fit
-    }
-    mx /= 2
-    my /= 2
+    const e0 = pair[0]!
+    const e1 = pair[1]!
+    const f0 = bodyRadius(e0.x, e0.y)
+    const f1 = bodyRadius(e1.x, e1.y)
+    const ax = e0.x * f0
+    const ay = e0.y * f0
+    const bx = e1.x * f1
+    const by = e1.y * f1
+    const mx = (ax + bx) / 2
+    const my = (ay + by) / 2
+    // La pente de la ligne des yeux. Une tête qui roule incline ses yeux, donc la
+    // bouche doit s'incliner avec eux : à plat sous un visage penché, elle se lit
+    // comme un sourire en coin. Ramenée dans un demi-tour : un regard qui envoie
+    // les yeux à l'autre bout de la sphère ne doit pas retourner la bouche.
+    let rot = (Math.atan2(by - ay, bx - ax) * 180) / Math.PI
+    if (rot > 90) rot -= 180
+    else if (rot <= -90) rot += 180
     const mouth =
       pose.mouth.alpha > 0.01
         ? {
             x: mx * 0.75 + (offX + decalage.x) * R,
             y: my + 0.36 * (R - my) + (offY + decalage.y) * R,
+            rot,
             w: pose.mouth.w * R,
             curve: pose.mouth.curve * R,
             thickness: pose.mouth.thickness * R,

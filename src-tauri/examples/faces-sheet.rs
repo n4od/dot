@@ -11,7 +11,7 @@
 //! Nothing here feeds the app, and nothing asserts: this is the eye, not a gate.
 //! The gate is `cargo test`'s parity suite, which these renders must agree with.
 
-use dot_lib::engine::{BotEngine, ExprId, ShapeId, StateId};
+use dot_lib::engine::{BotEngine, ExprId, Look, ShapeId, StateId};
 use dot_lib::render;
 use tiny_skia::Pixmap;
 
@@ -96,6 +96,33 @@ fn main() {
             let frame = engine.sample(0.7);
             for &size in &[512u32, 180] {
                 let file = out.join(format!("{style}-expr-{id}-{size}.png"));
+                paint(&frame, size, file, style, ink);
+            }
+        }
+
+        // The pose the desktop actually wears: pet.rs maps the cursor to
+        // `yaw = nx * 18, pitch = 10 - ny * 13, mix = 1`, so a cursor on the pet is
+        // yaw 0, pitch +10. The rest pose above is what the *settings* stage draws
+        // (`preview_frame` applies no look at all). Judge a face on both, because
+        // only the look has the tracking that overrides the expression's yaw and
+        // pitch - and only the look exposes what the expression's roll does.
+        for id in EXPRESSIONS {
+            let expr = ExprId::from_id(id).expect("expr id");
+            let mut engine = BotEngine::new(render::RAYON, StateId::Idle, Some(cercle), Some(expr));
+            engine.set_look(
+                Some(Look {
+                    yaw: 0.0,
+                    pitch: 10.0,
+                    mix: 1.0,
+                    spin: 0.0,
+                    wander: 0.0,
+                }),
+                0.0,
+                1e-9,
+            );
+            let frame = engine.sample(0.7);
+            for &size in &[512u32, 180] {
+                let file = out.join(format!("{style}-look-{id}-{size}.png"));
                 paint(&frame, size, file, style, ink);
             }
         }

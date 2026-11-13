@@ -319,6 +319,9 @@ pub struct MouthFrame {
     /// Centre of the lip line, in viewBox units.
     pub x: f64,
     pub y: f64,
+    /// How far the mouth is canted, in degrees, from the eye line. A rolled head
+    /// tilts its eyes, so the mouth tilts with them.
+    pub rot: f64,
     /// Lip width, bow, thickness and opening, all in viewBox units.
     pub w: f64,
     pub curve: f64,
@@ -758,19 +761,30 @@ impl BotEngine {
         // of the way from the eye line down to the rim. That held on all eight
         // silhouettes, so a mouth needs no per-shape table of its own.
         let pair = eye_poses(&gaze, r, p.split);
-        let mut mx = 0.0;
-        let mut my = 0.0;
-        for e in &pair {
+        let mut fitted = [(0.0, 0.0); 2];
+        for (i, e) in pair.iter().enumerate() {
             let fit = radius_at_angle(&p.sil.radii, e.y.atan2(e.x) - p.sil.rot);
-            mx += e.x * fit;
-            my += e.y * fit;
+            fitted[i] = (e.x * fit, e.y * fit);
         }
-        mx /= 2.0;
-        my /= 2.0;
+        let (x0, y0) = fitted[0];
+        let (x1, y1) = fitted[1];
+        let mx = (x0 + x1) / 2.0;
+        let my = (y0 + y1) / 2.0;
+        // The eye line's own slope. A rolled head tilts its eyes, so the mouth has
+        // to tilt with them; level under a canted face is what reads as a smirk.
+        // Kept within a half turn: a gaze that sends the eyes round the sphere must
+        // not turn the mouth upside down.
+        let mut rot = ((y1 - y0).atan2(x1 - x0) * 180.0) / std::f64::consts::PI;
+        if rot > 90.0 {
+            rot -= 180.0;
+        } else if rot <= -90.0 {
+            rot += 180.0;
+        }
         let mouth = if p.mouth.alpha > 0.01 {
             Some(MouthFrame {
                 x: mx * 0.75 + (off_x + decalage.x) * r,
                 y: my + 0.36 * (r - my) + (off_y + decalage.y) * r,
+                rot,
                 w: p.mouth.w * r,
                 curve: p.mouth.curve * r,
                 thickness: p.mouth.thickness * r,

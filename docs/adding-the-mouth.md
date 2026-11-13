@@ -35,6 +35,14 @@ Z
 Screen Y grows downwards, so a positive `curve` dips the middle of the lip *below*
 its corners, which reads as a smile; negative reads as a frown.
 
+One more degree of freedom sits on the frame rather than on the shape: the whole path
+is **canted to the eye line** (`rot`, in degrees). A rolled head tilts its eyes, so a
+level mouth underneath reads as a smirk rather than as a cocked head — see step 4.
+
+The whole path is then **canted to the eye line** (see step 4): a head that is rolled
+tilts its eyes, and a level mouth under a canted face reads as a smirk rather than as
+a cocked head.
+
 ## Where the numbers came from
 
 The mouth was chosen before it was coded, in `tools/mouth-sheet.mjs` — a throwaway
@@ -119,6 +127,8 @@ thing a painter ever sees.
 export interface MouthFrame {
   x: number
   y: number
+  /** de combien la bouche est inclinee, en degres, sur la ligne des yeux */
+  rot: number
   w: number
   curve: number
   thickness: number
@@ -218,20 +228,28 @@ the engine **actually put on the body**, not from the gaze angles:
 // tête, mais trois quarts moins loin que les yeux, et se pose à 36 % du chemin
 // entre la ligne des yeux et le bord.
 const pair = eyePoses(gaze, R, pose.split)
-let mx = 0
-let my = 0
-for (const e of pair) {
-  const fit = bodyRadius(e.x, e.y)   // the same fit the eyes are drawn with
-  mx += e.x * fit
-  my += e.y * fit
-}
-mx /= 2
-my /= 2
+const e0 = pair[0]!
+const e1 = pair[1]!
+const f0 = bodyRadius(e0.x, e0.y)   // the same fit the eyes are drawn with
+const f1 = bodyRadius(e1.x, e1.y)
+const ax = e0.x * f0
+const ay = e0.y * f0
+const bx = e1.x * f1
+const by = e1.y * f1
+const mx = (ax + bx) / 2
+const my = (ay + by) / 2
+// La pente de la ligne des yeux. Une tête qui roule incline ses yeux, donc la
+// bouche doit s'incliner avec eux : à plat sous un visage penché, elle se lit
+// comme un sourire en coin.
+let rot = (Math.atan2(by - ay, bx - ax) * 180) / Math.PI
+if (rot > 90) rot -= 180
+else if (rot <= -90) rot += 180
 const mouth =
   pose.mouth.alpha > 0.01
     ? {
         x: mx * 0.75 + (offX + decalage.x) * R,
         y: my + 0.36 * (R - my) + (offY + decalage.y) * R,
+        rot,
         w: pose.mouth.w * R,
         curve: pose.mouth.curve * R,
         thickness: pose.mouth.thickness * R,
@@ -241,7 +259,7 @@ const mouth =
     : null
 ```
 
-Three things are load-bearing:
+Four things are load-bearing:
 
 - **the fit.** Eyes live on a unit sphere and are pulled onto the actual silhouette
   by `bodyRadius`. The mouth must be built from the *fitted* eye positions, or on
@@ -252,6 +270,13 @@ Three things are load-bearing:
 - **`0.36`.** The mouth sits at 36 % of the way from the eye line down to the rim.
   Both constants held on all eight silhouettes, which is why there is **no per-shape
   table** — and why adding a shape does not require touching the mouth.
+- **`rot`.** The eye line's own slope, taken from the two *fitted* eye centres and
+  kept within a half turn. The head's roll is not part of the look (`Look` has yaw,
+  pitch, spin and wander, no roll), so an expression with a roll — `neutre` is −13° —
+  looks at you with its head canted. Place the mouth level under those eyes and it
+  reads as a smirk; cant it with them and the whole face reads as a cocked head.
+  Wrapped into `(−90, 90]` so a gaze that sends the eyes round the sphere cannot turn
+  the mouth upside down.
 
 Then add `mouth` to the returned frame, and keep the body offsets (`offX`, `offY`,
 `decalage`) applied exactly as the eyes apply them.
@@ -342,14 +367,16 @@ const mouthPath = computed(() => {
 })
 ```
 
-Fill **and** stroke it, with round caps and joins, and no transform — the numbers are
-already viewBox units:
+Fill **and** stroke it, with round caps and joins, and **rotate it about its own
+centre** — the numbers are already viewBox units, and the rotation keeps the anchor
+exactly where the engine put it:
 
 ```html
 <path
   v-if="frame.mouth"
   :d="mouthPath"
   :opacity="frame.mouth.alpha"
+  :transform="`rotate(${frame.mouth.rot} ${frame.mouth.x} ${frame.mouth.y})`"
   fill="..."
   stroke="..."
   :stroke-width="frame.mouth.thickness"
@@ -377,6 +404,7 @@ The mouth geometry is identical; only the ink differs. On upstream the mouth is 
 <path
   v-if="frame.mouth"
   :d="mouthPath"
+  :transform="`rotate(${frame.mouth.rot} ${frame.mouth.x} ${frame.mouth.y})`"
   fill="#000"
   stroke="#000"
   :stroke-width="frame.mouth.thickness"
@@ -408,6 +436,11 @@ Each of these was paid for once.
   shape.
 - **Anchor from the placed eyes, never from the gaze.** `eyePoses` plus the
   silhouette fit — see step 4.
+- **Place it *and* orient it.** The mouth is anchored to the eye line, so it also has
+  to be canted to it. `Look` has no roll, so an expression with a roll faces you with
+  its head canted; a level mouth under those eyes reads as a smirk, and it is the
+  mouth — not the eyes — that people blame. Rotate about the mouth's own centre: the
+  anchor is a hand-tuned formula and rotating about the eye midpoint would move it.
 - **Do not scale the lip up at small sizes.** The tempting "minimum 1 px thickness"
   fix breaks the relationship with the eyes; in Dot the parted resting mouth is what
   survives at 42 px (the settings chip), and nothing survives at 24 px. Small sizes
@@ -457,9 +490,14 @@ cargo run --manifest-path src-tauri/Cargo.toml --example faces-sheet
 
 writes every silhouette at 512/180/96/42/24 px, the sixteen expressions and the twelve
 states into `%TEMP%\dots-mouth\`, painted by the shipped native painter in both
-contrast directions. `tools/shot-pet.ps1` captures the real layered window instead, if
-you want to see what the desktop actually shows. Between them they are how the mouth
-was judged — the numbers above are the ones that survived looking at them.
+contrast directions. It renders every expression **twice**: at rest, and in the pose
+the desktop actually wears (a cursor on the pet is `yaw 0, pitch +10, mix 1`). Judge a
+face on both — the look is the only pose where the tracking overrides the expression's
+yaw and pitch, and the only one where a roll has nothing to hide behind.
+
+`tools/shot-pet.ps1` captures the real layered window instead, if you want to see what
+the desktop actually shows. Between them they are how the mouth was judged — the
+numbers above are the ones that survived looking at them.
 
 ## Files touched
 

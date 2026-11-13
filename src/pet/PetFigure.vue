@@ -203,6 +203,7 @@ function dotAttrs(dot: BotFrame['dots'][number]) {
           v-if="frame.mouth"
           :d="mouthPath"
           :opacity="frame.mouth.alpha"
+          :transform="`rotate(${frame.mouth.rot} ${frame.mouth.x} ${frame.mouth.y})`"
           :fill="eyeFill"
           :stroke="eyeFill"
           :stroke-width="frame.mouth.thickness"

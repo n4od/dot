@@ -18,9 +18,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   and sadness, a round "o" for surprise and fear, the widest grin for `hilare`), and
   the emoting states do too — `Wide` is startled, `thinking`/`alert`/`exclaim`/
   `sleep` have no face at all, and the face fades back in with the eyes on `Burst`
-  and `Comet`. Both painters consume the same numbers: `render.rs` fills and
-  strokes in tiny-skia, `PetFigure.vue` in SVG, both clipped to the body mask and
-  both in the contrast colour the eyes use.
+  and `Comet`. It sits where the engine actually put the eyes — three quarters of
+  their sideways shift, 36 % of the way down to the rim, which held on all eight
+  silhouettes — and it is canted to their line, because the look-at steers yaw and
+  pitch but never roll: an expression that carries a roll faces you with its head
+  cocked, and a level mouth under those eyes reads as a smirk. Both painters consume
+  the same numbers: `render.rs` fills and strokes in tiny-skia, `PetFigure.vue` in
+  SVG, both clipped to the body mask, both in the contrast colour the eyes use.
 
 - **A repeatable click-through check.** `render::body_contains` has unit tests, and
   `tools/check-click-through.ps1` drives the real cursor, reads the window's

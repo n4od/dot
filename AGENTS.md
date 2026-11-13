@@ -173,11 +173,15 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   so an expression can part a mouth without changing its kind. The frame carries one
   `MouthFrame` in viewBox units, anchored off the eyes the engine actually placed
   (three quarters of their sideways shift, 36 % of the way down to the rim — that
-  held on all eight silhouettes, so there is no per-shape table). Both painters
+  held on all eight silhouettes, so there is no per-shape table) and **canted to
+  their line**. The cant is not decoration: `Look` steers yaw and pitch but never
+  roll, so an expression that carries a roll (`neutre` is −13°) faces you with its
+  head cocked, and a level mouth under those eyes reads as a smirk. Both painters
   **fill and stroke the same closed path** — the lip quadratic, then the opening back
   to the start, round caps and joins — so `open = 0` is a rounded line and `open > 0`
-  a D. It is drawn in the eyes' contrast colour and clipped to the body mask like
-  them. `MouthCfg::REST` / `REST_MOUTH` is the resting grin (`w 0.358`, `curve
+  a D, rotated about the mouth's own centre so the anchor stays put. It is drawn in
+  the eyes' contrast colour and clipped to the body mask like them.
+  `MouthCfg::REST` / `REST_MOUTH` is the resting grin (`w 0.358`, `curve
   0.069`, `open 0.062`); expressions carry their own and it is applied wherever the
   expression's face is applied (`baseFace` in both engines), never inside a painter.
   States without a face (`thinking`, `alert`, `exclaim`, `sleep`) must set
