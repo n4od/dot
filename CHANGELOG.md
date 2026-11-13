@@ -7,6 +7,18 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The pet yawns when it wakes.** Waking from `Sleep` no longer snaps to `Idle`: the
+  pet plays a `Yawn`, the widest its mouth ever opens (`w 0.62`, `open 0.62` — a
+  gaping oval rather than the resting grin, chosen from a candidate sweep over all
+  eight silhouettes). It begins the instant the pet wakes, then opens *slowly* — a
+  jaw drop of more than a second before it holds — so it reads as a real yawn rather
+  than a mouth that snaps open; the eyes come open already narrowed and only open
+  fully once the mouth has closed again. The body stretches up and settles back with a
+  1 % shiver while the mouth is at its widest. It is the first state this fork *adds*
+  to the engine: both twins carry it, and the golden parity suite grew by six cases.
+
 ## [0.5.0] — 2026-11-13
 
 ### Added

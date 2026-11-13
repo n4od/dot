@@ -4,7 +4,7 @@ use serde::Deserialize;
 
 use super::decor::{particles, ArcSpec, DotRender};
 use super::face::{HeadGaze, EYE_H, EYE_SPLIT, EYE_W, REST_GAZE};
-use super::math::{clamp, ease_in_out_cubic, ease_out_cubic, ease_out_quint, TAU};
+use super::math::{clamp, ease_in_out_cubic, ease_out_cubic, ease_out_quint, lerp, TAU};
 use super::shape::Silhouette;
 use super::{Catalogue, StateId};
 
@@ -318,6 +318,47 @@ pub fn pose(id: StateId, t: f64, cat: &Catalogue) -> Pose {
             p.sil = circle(0.1585, 0.0, 0.11 + (t * (TAU / 0.6)).sin() * 0.19);
             p.eye_alpha = 0.0;
             p.mouth = MouthCfg::REST.with_alpha(0.0);
+            p
+        }
+
+        StateId::Yawn => {
+            // One picture, not a sequence: everything interpolates towards a single
+            // peak and back, so the two engines only have to agree on the curve.
+            //
+            // It begins the instant the pet wakes (the morph is short, so there is no
+            // dead beat), but the mouth opens *slowly* — `ease_in_out_cubic` over
+            // 1.2 s — so the jaw drops gradually instead of the mouth appearing
+            // already open.
+            let rise = ease_in_out_cubic(clamp(t / 1.2));
+            let fall = ease_in_out_cubic(clamp((t - 2.05) / 1.2));
+            let gaping = rise * (1.0 - fall);
+            // The eyes are already squeezed shut when it wakes — it has only just
+            // opened them — and stay that way through the yawn, opening only once the
+            // mouth has closed again. Starting them wide open reads as a face, not as
+            // a yawn.
+            let squint = 1.0 - ease_in_out_cubic(clamp((t - 1.95) / 1.05));
+            // The shiver that makes it a yawn and not just an open mouth: a 1 %
+            // wobble that exists only while the mouth is at its widest.
+            let held = clamp((t - 1.05) / 0.3) * clamp((2.45 - t) / 0.3);
+            let shiver = 1.0 + 0.012 * (t * TAU * 4.0).sin() * held;
+            let mut p = base();
+            p.gaze = HeadGaze {
+                yaw: lerp(REST_GAZE.yaw, 8.0, gaping),
+                pitch: lerp(REST_GAZE.pitch, 16.0, gaping),
+                roll: lerp(REST_GAZE.roll, -5.0, gaping),
+            };
+            p.split = lerp(EYE_SPLIT, 18.0, squint);
+            p.eyes = pair(lerp(EYE_W, 0.3, squint), lerp(EYE_H, 0.075, squint));
+            p.mouth = MouthCfg {
+                w: lerp(MouthCfg::REST.w, 0.62, gaping),
+                curve: lerp(MouthCfg::REST.curve, -0.18, gaping),
+                thickness: lerp(MouthCfg::REST.thickness, 0.042, gaping),
+                open: lerp(MouthCfg::REST.open, 0.62, gaping) * shiver,
+                alpha: 1.0,
+            };
+            p.sil = circle(1.0, 0.0, -0.025 * gaping);
+            p.sil.sx = 1.0 - 0.045 * gaping;
+            p.sil.sy = 1.0 + 0.075 * gaping;
             p
         }
 

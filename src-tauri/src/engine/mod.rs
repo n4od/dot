@@ -58,6 +58,7 @@ id_enum!(StateId {
     Notify => "notify",
     Exclaim => "exclaim",
     Sleep => "sleep",
+    Yawn => "yawn",
     Egg => "egg",
     Hexagon => "hexagon",
     Play => "play",

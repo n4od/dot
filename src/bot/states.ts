@@ -16,7 +16,7 @@ import {
   type DotRender
 } from './decor'
 import { EYE_H, EYE_SPLIT, EYE_W, REST_GAZE, type HeadGaze } from './face'
-import { TAU, clamp, easings } from './math'
+import { TAU, clamp, easings, lerp } from './math'
 import {
   circle,
   hullOfCircles,
@@ -200,6 +200,7 @@ export type StateId =
   | 'notify'
   | 'exclaim'
   | 'sleep'
+  | 'yawn'
   | 'egg'
   | 'hexagon'
   | 'play'
@@ -424,6 +425,72 @@ export const STATES: StateDef[] = [
   },
 
   {
+    /**
+     * The yawn: what waking up looks like, and the largest thing the face does.
+     *
+     * The head cannot carry it — cursor tracking replaces the pose's yaw and pitch
+     * on the desktop — so it is all in what survives the tracking: the mouth, which
+     * opens wider than anything else in the catalogue, the eyes, which squeeze to
+     * slits, and the body, which stretches up and settles back.
+     */
+    id: 'yawn',
+    // Slow on purpose: more than a second of jaw drop, a held peak with a shiver,
+    // then an even slower close. A lazy teddy yawn, not a snap.
+    duration: 3.5,
+    morph: 0.15,
+    baseFace: false,
+    baseBody: true,
+    blinkIn: false,
+    pose: (t) => {
+      // One picture, not a sequence: everything below interpolates towards a single
+      // peak and back, so the two engines only have to agree on the curve.
+      //
+      // It begins the instant the pet wakes (the morph is short, so there is no dead
+      // beat), but the mouth opens *slowly* — `easeInOutCubic` over 1.2 s — so the jaw
+      // drops gradually instead of the mouth appearing already open.
+      const rise = easings.easeInOutCubic(clamp(t / 1.2))
+      const fall = easings.easeInOutCubic(clamp((t - 2.05) / 1.2))
+      const gaping = rise * (1 - fall)
+      // The eyes are already squeezed shut when it wakes — it has only just opened
+      // them — and stay that way through the yawn, opening only once the mouth has
+      // closed again. Starting them wide open reads as a face, not as a yawn.
+      const squint = 1 - easings.easeInOutCubic(clamp((t - 1.95) / 1.05))
+      // The shiver that makes it a yawn and not just an open mouth: a 1 % wobble
+      // that exists only while the mouth is at its widest.
+      const held = clamp((t - 1.05) / 0.3) * clamp((2.45 - t) / 0.3)
+      const shiver = 1 + 0.012 * Math.sin(t * TAU * 4) * held
+      return base({
+        gaze: {
+          yaw: lerp(REST_GAZE.yaw, 8, gaping),
+          pitch: lerp(REST_GAZE.pitch, 16, gaping),
+          // The head straightens as it stretches: a small tilt, not a re-aim.
+          roll: lerp(REST_GAZE.roll, -5, gaping)
+        },
+        split: lerp(EYE_SPLIT, 18, squint),
+        // Eyes to slits: shorter and wider, the shape a real squeeze makes.
+        eyes: pair(lerp(EYE_W, 0.3, squint), lerp(EYE_H, 0.075, squint)),
+        // The mouth goes from the resting grin to a wide oval: the lip flattens
+        // (a negative curve keeps the two arcs symmetric) and the opening grows to
+        // a third of the ball's radius, wider than it is tall. Narrow and tall read
+        // as a hanging droplet, not as a mouth.
+        mouth: {
+          w: lerp(REST_MOUTH.w, 0.62, gaping),
+          curve: lerp(REST_MOUTH.curve, -0.18, gaping),
+          thickness: lerp(REST_MOUTH.thickness, 0.042, gaping),
+          open: lerp(REST_MOUTH.open, 0.62, gaping) * shiver,
+          alpha: 1
+        },
+        // Taller and slimmer at the peak, with a lift of the whole body.
+        sil: circle(1, {
+          sx: 1 - 0.045 * gaping,
+          sy: 1 + 0.075 * gaping,
+          cy: -0.025 * gaping
+        })
+      })
+    }
+  },
+
+  {
     id: 'egg',
     duration: 1.8,
     morph: 0.4,
@@ -643,6 +710,8 @@ export const POSES: Record<StateId, number> = {
   notify: 0.9,
   exclaim: 0.8,
   sleep: 0.45,
+  // the held peak of the yawn, where the mouth is widest
+  yawn: 1.6,
   egg: 0.8,
   hexagon: 0.8,
   play: 0.9,
@@ -652,6 +721,14 @@ export const POSES: Record<StateId, number> = {
   comet: 1.15
 }
 
+/**
+ * The reading order of the whole sequence, traced from the reference video.
+ *
+ * The yawn is deliberately NOT here: it comes from us, not from that video, and
+ * this list is what the montage plays. It still lives in the catalogue, because
+ * the state machine and the catalogue are the same list — see the one upstream
+ * test that lists what stays out of the montage.
+ */
 export const SEQUENCE: StateId[] = [
   'idle',
   'thinking',

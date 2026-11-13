@@ -501,12 +501,15 @@ fn run(
 
             if sleeping {
                 // Anything in the window — the cursor passing over it, a click —
-                // wakes the pet.
+                // wakes the pet, and waking is a yawn: the one state that shows the
+                // mouth at its widest. It runs as an emote, so the state machine
+                // already knows how to put the pet back to Idle afterwards.
                 if in_window {
                     sleeping = false;
-                    emote_ends_at = 0.0;
-                    next_emote_at = now + 7.0 + rand01() * 14.0;
-                    engine.set_state(StateId::Idle, now);
+                    engine.set_state(StateId::Yawn, now);
+                    let duration = catalogue().state_meta(StateId::Yawn).duration.max(1.8);
+                    emote_ends_at = now + duration;
+                    next_emote_at = emote_ends_at + 7.0 + rand01() * 14.0;
                 }
             } else if emote_ends_at == 0.0
                 && now_ms.saturating_sub(last_interaction) >= SLEEP_AFTER_MS

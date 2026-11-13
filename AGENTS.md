@@ -30,11 +30,11 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
 
 - `pnpm test` runs everything under `src/**/*.test.ts`: the six upstream suites
   copied into `src/bot/`, plus the app's own — `contrast.test.ts`,
-  `display.test.ts`, `pet/materials.test.ts` and `engine.test.ts`. 10 files, 109
+  `display.test.ts`, `pet/materials.test.ts` and `engine.test.ts`. 10 files, 111
   tests. Vitest runs with `globals: false`, so every test imports
   `{ describe, expect, it }` from `vitest` explicitly.
 - **The Rust side is tested too**: `cargo test --manifest-path src-tauri` runs the
-  config serde tests and the **142 engine-parity cases** in
+  config serde tests and the **148 engine-parity cases** in
   `src-tauri/tests/engine_parity.rs`. CI (`.github/workflows/ci.yml`) runs both
   sides, plus `cargo fmt --check` and `cargo clippy -D warnings`.
 - `pnpm build` typechecks the test files too (tsconfig includes `src/**/*.ts`), so a
@@ -91,18 +91,23 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   hidden). Window labels are hardcoded (`settings` only).
 - A **double-click** on the pet plays a wink (`DOUBLE_CLICK_MS` in `pet.rs`); a
   single click starts the OS drag.
-- **Reactions live in `pet.rs`, on states the engine already has.** A drag that
-  moved the window raises `WIDE_REQUESTED` from the window procedure (compare the
-  rect across `WM_NCLBUTTONDOWN`) for a startled look; `SLEEP_AFTER_MS` of no cursor
-  inside the pet's rect plays `Sleep` and holds it, and the cursor entering the rect
-  or a click wakes it. Neither adds geometry, so neither touches the painters or the
-  parity suite.
+- **Reactions live in `pet.rs`.** A drag that moved the window raises
+  `WIDE_REQUESTED` from the window procedure (compare the rect across
+  `WM_NCLBUTTONDOWN`) for a startled look — a state the engine already had, so it
+  adds no geometry and touches neither painter nor parity. `SLEEP_AFTER_MS` of no
+  cursor inside the pet's rect plays `Sleep` and holds it, and the cursor entering
+  the rect or a click wakes it with a `Yawn` — the widest thing the mouth does, and
+  the one state this fork *adds* to the engine (so it lives in both twins and the
+  golden suite covers it).
 - `src/bot/` is a frozen copy of `jeremy-prt/bloub` @ `b4bb3c1` (MIT), tests
-  included — **with one documented fork: the mouth.** `MouthCfg`/`REST_MOUTH` in
-  `states.ts`, the `mouth` field on `Pose` and the `MouthFrame` in `engine.ts`, and
-  the per-expression/per-state values in `expressions.ts` and `states.ts` are ours,
-  not upstream's. Everything else in the folder is untouched upstream code; if
-  upstream moves, re-copy by hand and re-apply the mouth on top.
+  included — **with two documented forks: the mouth and the `yawn` state.**
+  `MouthCfg`/`REST_MOUTH` in `states.ts`, the `mouth` field on `Pose` and the
+  `MouthFrame` in `engine.ts`, and the per-expression/per-state values in
+  `expressions.ts` and `states.ts` are ours, not upstream's; so is the `yawn`
+  `pose(t)` in `states.ts` and the one upstream test it forces open (`engine.test.ts`
+  now allows `['yawn', 'swirl']` outside `SEQUENCE`, since a yawn is not in the
+  reference video). Everything else in the folder is untouched upstream code; if
+  upstream moves, re-copy by hand and re-apply the mouth and the yawn on top.
   `bloub/` is a reference snapshot that is gitignored and excluded from
   Vite's watcher — **editing it changes nothing**, including its copy of the test
   suite, which is never run. Re-copy files by hand if upstream is updated.

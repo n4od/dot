@@ -43,9 +43,11 @@ a state that already exists in response to input.
       that did not move the pet stays a click.
 - [x] Sleep (`Sleep`) after `SLEEP_AFTER_MS` (2 min) with no cursor in the pet's
       rect; the pose breathes while held, and the cursor entering the rect or a
-      click wakes it back to `Idle`.
+      click wakes it with a `Yawn`.
 - [ ] A "peek" when the cursor approaches, a shy recoil when it is close.
-- [ ] A yawn or a stretch on waking.
+- [x] A yawn on waking (`Yawn`). A new state rather than a reused one, so it lives
+      in both engines and the golden parity suite covers it — the biggest thing the
+      face does, and the reason the mouth exists.
 - [ ] Double-click already winks; more gestures (hover, right-click, a second
       double).
 
@@ -54,7 +56,7 @@ a state that already exists in response to input.
 Write a `pose(t)` in `states.ts`, port it to `states.rs`, regenerate the golden, and
 add it to `EMOTES` (and `SEQUENCE`/`POSES` if it should play in the montage).
 
-- Yawn, sneeze, hiccup, stretch, shiver.
+- Sneeze, hiccup, stretch, shiver. (`Yawn` is done — see Phase A.)
 - A spin or a somersault; a bounce on landing.
 - A "?" or "…" thinking bubble; a heart; a small celebration.
 

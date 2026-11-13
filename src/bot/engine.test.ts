@@ -199,8 +199,11 @@ describe('etats', () => {
   })
 
   it('tient les transitions d interface hors du catalogue', () => {
+    // FORK (Dot): `yawn` is ours, not from the reference video, so it sits in the
+    // catalogue (the state machine needs it) but outside the montage. Everything
+    // else still has to be in `SEQUENCE`; the assertion stays exact on purpose.
     const horsSequence = STATES.filter((s) => !SEQUENCE.includes(s.id)).map((s) => s.id)
-    expect(horsSequence).toEqual(['swirl'])
+    expect(horsSequence).toEqual(['yawn', 'swirl'])
   })
 
   it('montre le visage sur les etats a visage, le cache sur les autres', () => {
