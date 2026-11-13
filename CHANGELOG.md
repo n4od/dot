@@ -7,6 +7,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-11-13
+
 ### Added
 
 - **A mouth.** The pet has a face below its eyes at last. One closed path — a lip
