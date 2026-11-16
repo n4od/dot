@@ -7,6 +7,17 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **A menu on the pet itself.** Right-click it for **Emote now**, **Settings...** and
+  **Quit** where you are already looking, instead of hunting for the tray icon.
+
+### Fixed
+
+- **Only one pet, ever.** Launching Dot again used to add a second pet — the window
+  is native, so nothing stopped it. A named mutex now holds the claim; the second
+  launch asks the running Dot to bring its pet back on screen and then steps aside.
+
 ## [0.5.3] — 2026-11-16
 
 ### Added

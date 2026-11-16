@@ -11,6 +11,7 @@ mod autostart;
 pub mod engine;
 mod pet;
 pub mod render;
+mod single;
 
 use pet::{PetConfig, PetHandle};
 
@@ -217,6 +218,25 @@ fn open_settings(app: &AppHandle) -> tauri::Result<()> {
     Ok(())
 }
 
+/// The two things the pet's own menu cannot do for itself, bound to the main
+/// thread here so `pet.rs` never has to know that Tauri exists.
+fn pet_actions(app: &AppHandle) -> pet::PetActions {
+    let for_settings = app.clone();
+    let for_quit = app.clone();
+    pet::PetActions {
+        settings: Box::new(move || {
+            let a = for_settings.clone();
+            let _ = for_settings.run_on_main_thread(move || {
+                let _ = open_settings(&a);
+            });
+        }),
+        quit: Box::new(move || {
+            let a = for_quit.clone();
+            let _ = for_quit.run_on_main_thread(move || request_quit(&a));
+        }),
+    }
+}
+
 fn build_tray(app: &AppHandle) -> tauri::Result<()> {
     let visibility = MenuItem::with_id(app, "toggle-pet", "Hide pet", true, None::<&str>)?;
     let settings = MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
@@ -252,6 +272,14 @@ fn build_tray(app: &AppHandle) -> tauri::Result<()> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // One pet per desktop. A second launch asks the Dot that is already running
+    // to come back on screen and then steps aside before it builds a tray or a
+    // window — without this, every launch stacks another pet on the wallpaper.
+    if single::already_running() {
+        let _ = single::wake_running_pet();
+        return;
+    }
+
     let app = tauri::Builder::default()
         .invoke_handler(tauri::generate_handler![
             quit_app,
@@ -300,6 +328,7 @@ pub fn run() {
                     config.mouth,
                     config.mood,
                 ),
+                pet_actions(&handle),
                 x,
                 y,
                 size,

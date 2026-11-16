@@ -90,7 +90,15 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   (`PetHandle::set_visible`, applied on the pet thread, which stops drawing while
   hidden). Window labels are hardcoded (`settings` only).
 - A **double-click** on the pet plays a wink (`DOUBLE_CLICK_MS` in `pet.rs`); a
-  single click starts the OS drag.
+  single click starts the OS drag, and a **right-click opens the pet's own menu**
+  (`pet_menu`): Emote now, Settings..., Quit. The menu runs on the pet thread because
+  `TrackPopupMenu` needs the owning thread — so the pet holds its last frame while it
+  is open. Settings and Quit are `PetActions` closures that `lib.rs` binds to the main
+  thread, which is how `pet.rs` stays free of Tauri.
+- **One pet per desktop.** `single.rs` takes a `Local\` named mutex before the app is
+  built; a second launch finds the running pet window by `PET_CLASS`, posts
+  `WM_APP_WAKE` (the pet raises `SHOW_REQUESTED`, so the tray's visibility flag stays
+  the single source of truth), and returns without building a tray or a window.
 - **Reactions live in `pet.rs`.** A drag that moved the window raises
   `WIDE_REQUESTED` from the window procedure (compare the rect across
   `WM_NCLBUTTONDOWN`) for a startled look — a state the engine already had, so it

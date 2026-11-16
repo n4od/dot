@@ -60,7 +60,10 @@ the feature for you; a plain `cargo` invocation does not.
 engine for its frames**, so it needs the Tauri shell — use `pnpm app:dev` (the
 real dev loop) when working on the settings UI.
 
-The tray icon is the only way to quit while the pet is on screen: **Quit**.
+**Right-click the pet** for its own menu — **Emote now**, **Settings...**, **Quit** —
+where you are already looking. The tray icon has the same Quit, plus a **Hide pet**
+toggle. Launching Dot twice does not stack two pets: the second launch brings the
+running one back on screen and then steps aside.
 
 ## Windows and how they are made
 

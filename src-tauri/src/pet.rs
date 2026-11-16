@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::ptr;
 use std::slice;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
-use std::sync::{Arc, Mutex, Once};
+use std::sync::{Arc, Mutex, Once, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
@@ -34,12 +34,14 @@ use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     GetLastInputInfo, ReleaseCapture, LASTINPUTINFO,
 };
 use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetCursorPos,
-    GetWindowLongPtrW, GetWindowRect, PeekMessageW, PostQuitMessage, RegisterClassW, SendMessageW,
-    SetWindowLongPtrW, SetWindowPos, ShowWindow, TranslateMessage, UpdateLayeredWindow,
-    GWL_EXSTYLE, MSG, PM_REMOVE, SWP_NOACTIVATE, SWP_NOZORDER, SW_HIDE, SW_SHOW, ULW_ALPHA,
-    WM_CLOSE, WM_DESTROY, WM_LBUTTONDOWN, WM_NCLBUTTONDOWN, WM_QUIT, WNDCLASSW, WS_EX_LAYERED,
-    WS_EX_NOACTIVATE, WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
+    AppendMenuW, CreatePopupMenu, CreateWindowExW, DefWindowProcW, DestroyMenu, DestroyWindow,
+    DispatchMessageW, GetCursorPos, GetWindowLongPtrW, GetWindowRect, PeekMessageW, PostMessageW,
+    PostQuitMessage, RegisterClassW, SendMessageW, SetForegroundWindow, SetWindowLongPtrW,
+    SetWindowPos, ShowWindow, TrackPopupMenu, TranslateMessage, UpdateLayeredWindow, GWL_EXSTYLE,
+    MF_SEPARATOR, MF_STRING, MSG, PM_REMOVE, SWP_NOACTIVATE, SWP_NOZORDER, SW_HIDE, SW_SHOW,
+    TPM_RETURNCMD, TPM_RIGHTBUTTON, ULW_ALPHA, WM_APP, WM_CLOSE, WM_DESTROY, WM_LBUTTONDOWN,
+    WM_NCLBUTTONDOWN, WM_NULL, WM_QUIT, WM_RBUTTONUP, WNDCLASSW, WS_EX_LAYERED, WS_EX_NOACTIVATE,
+    WS_EX_TOOLWINDOW, WS_EX_TOPMOST, WS_EX_TRANSPARENT, WS_POPUP,
 };
 
 use crate::engine::{catalogue, BotEngine, ExprId, Look, ShapeId, StateId};
@@ -227,6 +229,87 @@ impl LoadSampler {
 static LAST_CLICK: AtomicU64 = AtomicU64::new(0);
 static WINK_REQUESTED: AtomicBool = AtomicBool::new(false);
 static WIDE_REQUESTED: AtomicBool = AtomicBool::new(false);
+/// Raised by the pet's own right-click menu.
+static EMOTE_REQUESTED: AtomicBool = AtomicBool::new(false);
+/// Raised by a second launch, which asks this pet to come back on screen.
+static SHOW_REQUESTED: AtomicBool = AtomicBool::new(false);
+
+/// The pet window's class; a second launch also looks for it by name.
+pub const PET_CLASS: &str = "DotNativePet";
+
+/// Our own message: a second Dot posts it to ask this pet to show itself.
+pub const WM_APP_WAKE: u32 = WM_APP + 1;
+
+/// What the pet's own menu can ask the *app* to do.
+///
+/// The pet thread must not touch Tauri, so the window procedure only calls these
+/// closures, which `lib.rs` hands in already bound to the main thread.
+pub struct PetActions {
+    pub settings: Box<dyn Fn() + Send + Sync>,
+    pub quit: Box<dyn Fn() + Send + Sync>,
+}
+
+/// Set once at spawn: the window procedure is an `extern "system"` free function,
+/// so it cannot close over the actions and reads them from here instead.
+static ACTIONS: OnceLock<PetActions> = OnceLock::new();
+
+const MENU_EMOTE: usize = 1;
+const MENU_SETTINGS: usize = 2;
+const MENU_QUIT: usize = 3;
+
+fn wide(s: &str) -> Vec<u16> {
+    s.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+/// The pet's own right-click menu, at the cursor.
+///
+/// It must run on the thread that owns the window, so the pet holds its last
+/// frame while the menu is open — a menu is modal. Settings and Quit go through
+/// `ACTIONS`, because the pet thread cannot touch Tauri.
+fn pet_menu(hwnd: HWND) {
+    unsafe {
+        let menu = CreatePopupMenu();
+        if menu.is_null() {
+            return;
+        }
+        AppendMenuW(menu, MF_STRING, MENU_EMOTE, wide("Emote now").as_ptr());
+        AppendMenuW(menu, MF_STRING, MENU_SETTINGS, wide("Settings...").as_ptr());
+        AppendMenuW(menu, MF_SEPARATOR, 0, ptr::null());
+        AppendMenuW(menu, MF_STRING, MENU_QUIT, wide("Quit").as_ptr());
+
+        let mut p = POINT { x: 0, y: 0 };
+        GetCursorPos(&mut p);
+        // MSDN: the owner has to be foreground, or the menu will not dismiss when
+        // you click somewhere else.
+        SetForegroundWindow(hwnd);
+        let cmd = TrackPopupMenu(
+            menu,
+            TPM_RETURNCMD | TPM_RIGHTBUTTON,
+            p.x,
+            p.y,
+            0,
+            hwnd,
+            ptr::null(),
+        ) as usize;
+        PostMessageW(hwnd, WM_NULL, 0, 0);
+        DestroyMenu(menu);
+
+        match cmd {
+            MENU_EMOTE => EMOTE_REQUESTED.store(true, Ordering::SeqCst),
+            MENU_SETTINGS => {
+                if let Some(a) = ACTIONS.get() {
+                    (a.settings)();
+                }
+            }
+            MENU_QUIT => {
+                if let Some(a) = ACTIONS.get() {
+                    (a.quit)();
+                }
+            }
+            _ => {}
+        }
+    }
+}
 
 /// The same resting animations the webview scheduler played.
 const EMOTES: [StateId; 10] = [
@@ -371,6 +454,14 @@ unsafe extern "system" fn wndproc(hwnd: HWND, msg: u32, wp: WPARAM, lp: LPARAM) 
             DestroyWindow(hwnd);
             0
         }
+        WM_RBUTTONUP => {
+            pet_menu(hwnd);
+            0
+        }
+        WM_APP_WAKE => {
+            SHOW_REQUESTED.store(true, Ordering::SeqCst);
+            0
+        }
         WM_DESTROY => {
             PostQuitMessage(0);
             0
@@ -421,12 +512,14 @@ static REGISTER: Once = Once::new();
 
 pub fn spawn(
     initial: PetConfig,
+    actions: PetActions,
     x: i32,
     y: i32,
     size: i32,
     scale: f64,
     state_path: Option<PathBuf>,
 ) -> PetHandle {
+    let _ = ACTIONS.set(actions);
     let shared = Arc::new(Mutex::new(initial));
     let version = Arc::new(AtomicU64::new(0));
     let visible = Arc::new(AtomicBool::new(true));
@@ -458,7 +551,7 @@ fn run(
 ) {
     unsafe {
         let hinstance = GetModuleHandleW(ptr::null());
-        let class: Vec<u16> = "DotNativePet\0".encode_utf16().collect();
+        let class = wide(PET_CLASS);
         REGISTER.call_once(|| {
             let wc = WNDCLASSW {
                 style: 0,
@@ -696,6 +789,23 @@ fn run(
                 sleeping = false;
                 engine.set_state(StateId::Wide, now);
                 let duration = catalogue().state_meta(StateId::Wide).duration.max(1.6);
+                emote_ends_at = now + duration;
+                next_emote_at = emote_ends_at + 7.0 + rand01() * 14.0;
+            }
+            if SHOW_REQUESTED.swap(false, Ordering::SeqCst) {
+                // A second Dot was launched and asked this one to come back on
+                // screen; show it through the same flag the tray writes, so the
+                // two cannot disagree.
+                visible.store(true, Ordering::SeqCst);
+                SetForegroundWindow(hwnd);
+            }
+            if EMOTE_REQUESTED.swap(false, Ordering::SeqCst) {
+                // "Emote now" from the pet's own menu: the same path a spontaneous
+                // emote takes, just asked for.
+                sleeping = false;
+                let id = EMOTES[(rand01() * EMOTES.len() as f64) as usize % EMOTES.len()];
+                engine.set_state(id, now);
+                let duration = catalogue().state_meta(id).duration.max(1.6);
                 emote_ends_at = now + duration;
                 next_emote_at = emote_ends_at + 7.0 + rand01() * 14.0;
             }
