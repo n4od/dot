@@ -7,6 +7,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.2] — 2026-11-16
+
 ### Fixed
 
 - **The pet no longer falls asleep while you are using the PC.** The sleep trigger
