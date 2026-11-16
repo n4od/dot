@@ -7,6 +7,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.3] — 2026-11-16
+
 ### Added
 
 - **The pet wears the machine's mood.** It now reads CPU load and battery — offline,
