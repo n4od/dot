@@ -7,6 +7,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.4] — 2026-11-16
+
 ### Added
 
 - **A menu on the pet itself.** Right-click it for **Emote now**, **Settings...** and
