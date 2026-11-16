@@ -7,6 +7,16 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The pet wears the machine's mood.** It now reads CPU load and battery — offline,
+  a couple of cheap Win32 calls, no extra process — and picks one of four faces: your
+  own expression while the box is calm, attentive when it is busy, frazzled when it is
+  pinned, drowsy on a low battery. Hysteresis stops a load sitting on a threshold from
+  flickering the face, and it only ever changes the *resting* face — an emote still
+  wears its own. A new **Machine mood** switch in Settings (on by default) hands the
+  pet back your expression if you would rather it just be a pet.
+
 ## [0.5.2] — 2026-11-16
 
 ### Fixed

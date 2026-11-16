@@ -17,6 +17,7 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tiny_skia::Pixmap;
+use windows_sys::Win32::Foundation::FILETIME;
 use windows_sys::Win32::Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, SIZE, WPARAM};
 use windows_sys::Win32::Graphics::Gdi::{
     CreateCompatibleDC, CreateDIBSection, DeleteDC, DeleteObject, GetMonitorInfoW,
@@ -25,7 +26,9 @@ use windows_sys::Win32::Graphics::Gdi::{
     MONITOR_DEFAULTTONEAREST,
 };
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
+use windows_sys::Win32::System::Power::{GetSystemPowerStatus, SYSTEM_POWER_STATUS};
 use windows_sys::Win32::System::SystemInformation::GetTickCount64;
+use windows_sys::Win32::System::Threading::GetSystemTimes;
 use windows_sys::Win32::UI::HiDpi::GetDpiForWindow;
 use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
     GetLastInputInfo, ReleaseCapture, LASTINPUTINFO,
@@ -84,6 +87,141 @@ fn should_sleep(idle_ms: u64, in_window: bool, emote_active: bool) -> bool {
     !in_window && !emote_active && idle_ms >= SLEEP_AFTER_MS
 }
 
+/* ------------------------------------------------------------------- mood */
+
+/// How often the CPU is sampled, and how often the battery is re-read.
+const LOAD_SAMPLE_MS: u64 = 1000;
+const POWER_SAMPLE_MS: u64 = 5000;
+/// Weight of a new CPU sample in the running average. Low enough that one busy
+/// frame does not change the face, high enough to react within a few seconds.
+const LOAD_EMA: f64 = 0.4;
+
+/// Load has to cross one line to earn a mood and drop below a lower one to lose
+/// it, so a machine sitting on the boundary does not flicker the face.
+const BUSY_ENTER: f64 = 0.45;
+const BUSY_EXIT: f64 = 0.30;
+const PEGGED_ENTER: f64 = 0.85;
+const PEGGED_EXIT: f64 = 0.70;
+/// On battery below this, the pet gets drowsy.
+const BATTERY_LOW_PERCENT: u8 = 20;
+
+/// What the machine is doing, as the pet reads it. Four coarse states, because
+/// that is all a face can carry — this is a feel, not a gauge.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Mood {
+    Calm,
+    Busy,
+    Pegged,
+    LowBattery,
+}
+
+/// The mood for a load, with hysteresis against `current`. Pure, so the mapping
+/// is unit-tested instead of eyeballed against a running machine.
+fn mood_for(load: f64, on_battery: bool, battery_percent: u8, current: Mood) -> Mood {
+    // Battery outranks load: it is the one that wants an action from you.
+    if on_battery && battery_percent <= BATTERY_LOW_PERCENT {
+        return Mood::LowBattery;
+    }
+    if load >= PEGGED_ENTER || (current == Mood::Pegged && load >= PEGGED_EXIT) {
+        return Mood::Pegged;
+    }
+    if load >= BUSY_ENTER || (current == Mood::Busy && load >= BUSY_EXIT) {
+        return Mood::Busy;
+    }
+    Mood::Calm
+}
+
+/// The face a mood wears. `Calm` hands the pet back its own expression, so a
+/// quiet machine always looks the way you configured it.
+fn mood_expression(mood: Mood, user: ExprId) -> ExprId {
+    match mood {
+        Mood::Calm => user,
+        Mood::Busy => ExprId::Attentif,
+        Mood::Pegged => ExprId::Effraye,
+        Mood::LowBattery => ExprId::Somnolent,
+    }
+}
+
+/// Busy fraction between two `GetSystemTimes` samples.
+///
+/// `kernel` already contains `idle`, so the total is `kernel + user` and the busy
+/// part is that minus idle. Pure: the caller owns the clock and the sampling.
+fn busy_fraction(prev: (u64, u64, u64), now: (u64, u64, u64)) -> Option<f64> {
+    let idle = now.0.saturating_sub(prev.0);
+    let total = now.1.saturating_sub(prev.1) + now.2.saturating_sub(prev.2);
+    if total == 0 {
+        return None;
+    }
+    Some(1.0 - idle as f64 / total as f64)
+}
+
+fn filetime_ms(t: FILETIME) -> u64 {
+    ((t.dwHighDateTime as u64) << 32) | t.dwLowDateTime as u64
+}
+
+/// System times as (idle, kernel, user) hundred-nanosecond ticks.
+fn system_times() -> (u64, u64, u64) {
+    let mut idle = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    let mut kernel = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    let mut user = FILETIME {
+        dwLowDateTime: 0,
+        dwHighDateTime: 0,
+    };
+    unsafe { GetSystemTimes(&mut idle, &mut kernel, &mut user) };
+    (filetime_ms(idle), filetime_ms(kernel), filetime_ms(user))
+}
+
+/// Whether the machine is on battery, and how full it is.
+fn power_status() -> (bool, u8) {
+    let mut s: SYSTEM_POWER_STATUS = unsafe { std::mem::zeroed() };
+    if unsafe { GetSystemPowerStatus(&mut s) } == 0 {
+        return (false, 100);
+    }
+    // 255 is the API's "unknown" for both, which is what a desktop on mains
+    // reports; treat it as plugged in and full rather than as a dead battery.
+    let on_battery = s.ACLineStatus == 0;
+    let percent = if s.BatteryLifePercent == 255 {
+        100
+    } else {
+        s.BatteryLifePercent
+    };
+    (on_battery, percent)
+}
+
+/// CPU load over time, so the mood sees an average and not a single sample.
+#[derive(Default)]
+struct LoadSampler {
+    prev: Option<(u64, u64, u64)>,
+    sampled_at: u64,
+    ema: Option<f64>,
+}
+
+impl LoadSampler {
+    /// The smoothed busy fraction, resampled at most once per `LOAD_SAMPLE_MS`.
+    fn load(&mut self, now_ms: u64) -> f64 {
+        if self.prev.is_none() || now_ms.saturating_sub(self.sampled_at) >= LOAD_SAMPLE_MS {
+            self.sampled_at = now_ms;
+            let now = system_times();
+            if let Some(prev) = self.prev {
+                if let Some(load) = busy_fraction(prev, now) {
+                    self.ema = Some(match self.ema {
+                        None => load,
+                        Some(e) => e + LOAD_EMA * (load - e),
+                    });
+                }
+            }
+            self.prev = Some(now);
+        }
+        self.ema.unwrap_or(0.0)
+    }
+}
+
 /// Tick of the previous click, and reactions asked for by the window procedure.
 /// The engine lives on the pet thread, so the procedure only raises a flag.
 static LAST_CLICK: AtomicU64 = AtomicU64::new(0);
@@ -114,6 +252,9 @@ pub struct PetConfig {
     /// Whether the face has a mouth; appearance, so it is applied in place with
     /// the rest of the config.
     pub mouth: bool,
+    /// Whether the pet may wear the machine's mood instead of the expression you
+    /// chose, while the box is busy or the battery is low.
+    pub mood: bool,
 }
 
 impl PetConfig {
@@ -123,6 +264,7 @@ impl PetConfig {
         color_id: &str,
         style: &str,
         mouth: bool,
+        mood: bool,
     ) -> Self {
         let hex = catalogue()
             .colors
@@ -136,6 +278,7 @@ impl PetConfig {
             color: hex,
             style: style.to_string(),
             mouth,
+            mood,
         }
     }
 }
@@ -372,6 +515,7 @@ fn run(
             color: "#0a0a0c".into(),
             style: "plat".into(),
             mouth: true,
+            mood: true,
         });
 
         let mut engine =
@@ -413,6 +557,16 @@ fn run(
         let mut shown = true;
         let mut saved_pos = (x, y);
         let mut sleeping = false;
+        // Machine mood: the box's own state, and the expression the pet wears
+        // because of it. `user_expr` is what the config asks for, `engine_expr`
+        // what the engine currently has, so a change is applied exactly once.
+        let mut load_sampler = LoadSampler::default();
+        let mut power_at = 0u64;
+        let mut power = (false, 100u8);
+        let mut mood = Mood::Calm;
+        let mut mood_on = first.mood;
+        let mut user_expr = first.expression;
+        let mut engine_expr = first.expression;
 
         loop {
             let mut msg: MSG = std::mem::zeroed();
@@ -487,11 +641,33 @@ fn run(
                 last_version = v;
                 if let Ok(cfg) = shared.lock().map(|c| c.clone()) {
                     engine.set_shape(Some(cfg.shape), now);
-                    engine.set_expression(Some(cfg.expression), now);
                     engine.set_mouth(cfg.mouth);
                     color = cfg.color;
                     style = cfg.style;
+                    // The expression is not set here: the mood below decides it,
+                    // and this is only what the config is asking for.
+                    user_expr = cfg.expression;
+                    mood_on = cfg.mood;
                 }
+            }
+
+            // The machine's mood, on its own slow clock. Only the resting face
+            // carries it — an emote has a face of its own — so it is applied like
+            // a config change, in place, and the expression you chose comes back
+            // the moment the machine goes quiet.
+            if mood_on {
+                if now_ms.saturating_sub(power_at) >= POWER_SAMPLE_MS {
+                    power_at = now_ms;
+                    power = power_status();
+                }
+                mood = mood_for(load_sampler.load(now_ms), power.0, power.1, mood);
+            } else {
+                mood = Mood::Calm;
+            }
+            let wanted = mood_expression(mood, user_expr);
+            if wanted != engine_expr {
+                engine.set_expression(Some(wanted), now);
+                engine_expr = wanted;
             }
 
             let mut pos = POINT { x: 0, y: 0 };
@@ -650,7 +826,9 @@ fn run(
 
 #[cfg(test)]
 mod tests {
-    use super::{should_sleep, SLEEP_AFTER_MS};
+    use super::{
+        busy_fraction, mood_expression, mood_for, should_sleep, ExprId, Mood, SLEEP_AFTER_MS,
+    };
 
     #[test]
     fn sleeps_only_after_the_whole_session_goes_quiet() {
@@ -669,5 +847,57 @@ mod tests {
         assert!(!should_sleep(SLEEP_AFTER_MS * 10, true, false));
         // An emote in flight is not a moment to lie down.
         assert!(!should_sleep(SLEEP_AFTER_MS * 10, false, true));
+    }
+
+    #[test]
+    fn busy_fraction_ignores_the_idle_time() {
+        // `kernel` already contains `idle`: 100 ticks passed, 90 of them idle.
+        let load = busy_fraction((0, 0, 0), (90, 60, 40)).unwrap();
+        assert!((load - 0.10).abs() < 1e-9, "got {load}");
+        // No ticks elapsed: no reading, rather than a division by zero.
+        assert!(busy_fraction((90, 60, 40), (90, 60, 40)).is_none());
+    }
+
+    #[test]
+    fn a_quiet_machine_is_calm_and_a_pegged_one_is_frazzled() {
+        assert_eq!(mood_for(0.05, false, 100, Mood::Calm), Mood::Calm);
+        assert_eq!(mood_for(0.60, false, 100, Mood::Calm), Mood::Busy);
+        assert_eq!(mood_for(0.95, false, 100, Mood::Calm), Mood::Pegged);
+    }
+
+    #[test]
+    fn the_machine_has_to_fall_well_below_the_line_to_calm_down() {
+        // Hysteresis: a busy machine holds its mood down to 0.30 and a pegged one
+        // down to 0.70, so a load sitting on a line does not flicker the face.
+        assert_eq!(mood_for(0.40, false, 100, Mood::Busy), Mood::Busy);
+        assert_eq!(mood_for(0.20, false, 100, Mood::Busy), Mood::Calm);
+        assert_eq!(mood_for(0.75, false, 100, Mood::Pegged), Mood::Pegged);
+        assert_eq!(mood_for(0.60, false, 100, Mood::Pegged), Mood::Busy);
+    }
+
+    #[test]
+    fn a_low_battery_outranks_the_load_and_clears_when_plugged_in() {
+        assert_eq!(mood_for(0.95, true, 10, Mood::Calm), Mood::LowBattery);
+        // Plugged in at the same level: the load decides again.
+        assert_eq!(mood_for(0.05, false, 10, Mood::Calm), Mood::Calm);
+        // A desktop on mains reports no battery at all, and must stay calm.
+        assert_eq!(mood_for(0.05, false, 100, Mood::Calm), Mood::Calm);
+    }
+
+    #[test]
+    fn a_calm_machine_wears_the_expression_you_chose() {
+        assert_eq!(mood_expression(Mood::Calm, ExprId::Hilare), ExprId::Hilare);
+        assert_eq!(
+            mood_expression(Mood::Busy, ExprId::Hilare),
+            ExprId::Attentif
+        );
+        assert_eq!(
+            mood_expression(Mood::Pegged, ExprId::Hilare),
+            ExprId::Effraye
+        );
+        assert_eq!(
+            mood_expression(Mood::LowBattery, ExprId::Hilare),
+            ExprId::Somnolent
+        );
     }
 }

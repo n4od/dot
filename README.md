@@ -7,8 +7,8 @@
 
 A desktop pet that lives in a transparent, frameless **native** window — a Win32
 layered window, not a browser — that turns its head towards your real cursor
-anywhere on the screen, emotes on its own, and lets clicks through wherever it is
-not painted.
+anywhere on the screen, emotes on its own, wears how busy your PC is, and lets
+clicks through wherever it is not painted.
 
 It is tiny: about **1 % of one core and 15 MB** at rest — one native process, no
 browser.
@@ -96,11 +96,18 @@ French, because those are what the engine, its tests and the config file use.
 The choice lives in one small JSON file:
 
 ```json
-{ "shape": "triangle", "color": "violet", "expression": "somnolent", "style": "argile" }
+{
+  "shape": "triangle",
+  "color": "violet",
+  "expression": "somnolent",
+  "style": "argile",
+  "mouth": true,
+  "mood": true
+}
 ```
 
 at `%APPDATA%\dev.dotscode.dot\config.json`. Delete it to go back to defaults
-(`cercle` / `encre` / `neutre` / `plat`).
+(`cercle` / `encre` / `neutre` / `plat`, with the mouth and the machine mood on).
 
 **Rust owns that file, not the frontend.** The native pet thread reads it at
 startup, before any webview exists, and `set_config` hands later changes to that
@@ -108,6 +115,26 @@ thread, which morphs shape and expression and switches colour and style in place
 no reload, no flash. A missing, unreadable or half-written file is not an error:
 unknown ids fall back to the catalogue defaults, so a hand-edited file degrades
 instead of breaking the pet.
+
+## Machine mood
+
+The pet can wear what your PC is doing. It reads CPU load and battery with a couple
+of cheap Win32 calls — offline, in the same process, with no extra thread and no
+network — and rests in one of four faces:
+
+![The same pet at three CPU loads: calm, busy and pinned](docs/mood-sheet.png)
+
+| Your machine | What it wears |
+|---|---|
+| Calm | the expression you picked |
+| Busy — CPU ≥ 45 % | **Attentive** |
+| Pinned — CPU ≥ 85 % | **Scared** — wide-eyed and frazzled |
+| On battery, ≤ 20 % | **Sleepy** |
+
+Load has to *cross* one line to earn a mood and fall well below it to lose one, so a
+machine sitting on a threshold cannot flicker the face. It only ever changes the
+**resting** face — an emote still wears its own — and the switch is **Machine mood**
+in Settings: off, the pet wears exactly the expression you chose.
 
 ## Styles, and how the pet is painted
 

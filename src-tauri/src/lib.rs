@@ -38,6 +38,9 @@ struct Config {
     /// Whether the face has a mouth. Defaults to on: a config written before the
     /// field existed keeps the face it had.
     mouth: bool,
+    /// Whether the pet may wear the machine's mood (busy, frazzled, drowsy) in
+    /// place of the chosen expression. Defaults to on, for the same reason.
+    mood: bool,
 }
 
 impl Default for Config {
@@ -48,6 +51,7 @@ impl Default for Config {
             expression: "neutre".into(),
             style: "plat".into(),
             mouth: true,
+            mood: true,
         }
     }
 }
@@ -125,6 +129,7 @@ fn set_config(app: AppHandle, config: Config) -> Result<Config, String> {
             &config.color,
             &config.style,
             config.mouth,
+            config.mood,
         ));
     }
 
@@ -293,6 +298,7 @@ pub fn run() {
                     &config.color,
                     &config.style,
                     config.mouth,
+                    config.mood,
                 ),
                 x,
                 y,
@@ -365,6 +371,22 @@ mod tests {
     fn the_mouth_can_be_switched_off() {
         let config: Config = serde_json::from_str(r#"{"mouth":false}"#).unwrap();
         assert!(!config.mouth);
+    }
+
+    /// Same trap one field later: a file written before the mood existed has no
+    /// `mood` key, and serde's default for a bool would switch it off for everyone
+    /// who already had a config.
+    #[test]
+    fn a_file_from_before_the_mood_existed_has_it_on() {
+        let config: Config =
+            serde_json::from_str(r#"{"shape":"galet","style":"peluche"}"#).unwrap();
+        assert!(config.mood);
+    }
+
+    #[test]
+    fn the_mood_can_be_switched_off() {
+        let config: Config = serde_json::from_str(r#"{"mood":false}"#).unwrap();
+        assert!(!config.mood);
     }
 
     /// Same trap one layer up: an older settings window sends a preview request

@@ -101,6 +101,15 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   does, and the one state this fork *adds* to the engine (so it lives in both twins
   and the golden suite covers it). A pointer parked on the pet keeps it awake, so an
   idle session there cannot sleep-then-yawn in a loop.
+- **Machine mood lives in `pet.rs` too.** `GetSystemTimes` (inside a `LoadSampler`,
+  averaged with an EMA and sampled once a second) and `GetSystemPowerStatus` are
+  mapped by the pure `mood_for` to `Calm` / `Busy` / `Pegged` / `LowBattery`, with
+  hysteresis so a load sitting on a threshold cannot flicker the face. The mood
+  overrides only the *resting* expression (`mood_expression`), never a state's own
+  face, and `Config.mood` — default on, for the same reason as `mouth` — switches it
+  off, at which point the pet wears exactly the expression you chose. It is
+  Rust-only: no engine, painter or golden change, because it reuses expressions the
+  catalogue already has.
 - `src/bot/` is a frozen copy of `jeremy-prt/bloub` @ `b4bb3c1` (MIT), tests
   included — **with two documented forks: the mouth and the `yawn` state.**
   `MouthCfg`/`REST_MOUTH` in `states.ts`, the `mouth` field on `Pose` and the

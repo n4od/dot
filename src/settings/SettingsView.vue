@@ -24,6 +24,7 @@ interface Config {
   expression: string
   style: string
   mouth: boolean
+  mood: boolean
 }
 
 const config = ref<Config>({
@@ -31,7 +32,8 @@ const config = ref<Config>({
   color: DEFAULT_COLOR,
   expression: DEFAULT_EXPRESSION,
   style: DEFAULT_STYLE,
-  mouth: true
+  mouth: true,
+  mood: true
 })
 const error = ref('')
 const saved = ref(false)
@@ -157,12 +159,22 @@ function pick(key: keyof Config, value: string) {
 }
 
 /**
- * The mouth is the one boolean on this panel, so it cannot go through `pick`,
- * which speaks in stored string ids. Same coalesced write.
+ * The two booleans cannot go through `pick`, which speaks in stored string ids.
+ * Same coalesced write.
  */
 function setMouth(on: boolean) {
   if (config.value.mouth === on) return
   config.value = { ...config.value, mouth: on }
+  schedule()
+}
+
+/**
+ * The machine mood only changes the desktop pet's resting face; the bench keeps
+ * showing the expression you picked, so it needs no preview reset.
+ */
+function setMood(on: boolean) {
+  if (config.value.mood === on) return
+  config.value = { ...config.value, mood: on }
   schedule()
 }
 
@@ -471,6 +483,37 @@ function straightAhead(frame: BotFrame): BotFrame {
 
         <section class="row">
           <div class="rowhead">
+            <h2>Machine mood</h2>
+            <span class="value">{{ config.mood ? 'On' : 'Off' }}</span>
+          </div>
+          <div class="pills" role="group" aria-label="Machine mood">
+            <button
+              type="button"
+              class="stylebtn"
+              :class="{ on: config.mood }"
+              :aria-pressed="config.mood"
+              @click="setMood(true)"
+            >
+              On
+            </button>
+            <button
+              type="button"
+              class="stylebtn"
+              :class="{ on: !config.mood }"
+              :aria-pressed="!config.mood"
+              @click="setMood(false)"
+            >
+              Off
+            </button>
+          </div>
+          <p class="hint">
+            Wears what the PC is doing — attentive when it is busy, frazzled when it
+            is pinned, drowsy on a low battery — instead of the expression above.
+          </p>
+        </section>
+
+        <section class="row">
+          <div class="rowhead">
             <h2>Startup</h2>
             <span class="value">{{ autostart ? 'On' : 'Off' }}</span>
           </div>
@@ -706,6 +749,13 @@ h2 {
 .value {
   font-size: 12px;
   color: #5c5142;
+}
+
+.hint {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--muted);
 }
 
 button {
