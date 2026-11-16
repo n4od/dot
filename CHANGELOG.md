@@ -7,6 +7,15 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The pet no longer falls asleep while you are using the PC.** The sleep trigger
+  only counted the cursor sitting *on the pet*, so working anywhere else — typing,
+  scrolling, clicking other windows — left the clock running and it lay down every
+  two minutes regardless. It now reads `GetLastInputInfo`, the screensaver clock, so
+  it sleeps only after two minutes with no keyboard or mouse input anywhere; a
+  pointer parked on the pet still keeps it awake.
+
 ## [0.5.1] — 2026-11-14
 
 ### Added

@@ -27,7 +27,9 @@ use windows_sys::Win32::Graphics::Gdi::{
 use windows_sys::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows_sys::Win32::System::SystemInformation::GetTickCount64;
 use windows_sys::Win32::UI::HiDpi::GetDpiForWindow;
-use windows_sys::Win32::UI::Input::KeyboardAndMouse::ReleaseCapture;
+use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+    GetLastInputInfo, ReleaseCapture, LASTINPUTINFO,
+};
 use windows_sys::Win32::UI::WindowsAndMessaging::{
     CreateWindowExW, DefWindowProcW, DestroyWindow, DispatchMessageW, GetCursorPos,
     GetWindowLongPtrW, GetWindowRect, PeekMessageW, PostQuitMessage, RegisterClassW, SendMessageW,
@@ -52,6 +54,35 @@ const HTCAPTION: usize = 2;
 const DOUBLE_CLICK_MS: u64 = 320;
 /// Idle time before the pet lies down to sleep.
 const SLEEP_AFTER_MS: u64 = 120_000;
+
+/// How long the whole session has gone without keyboard or mouse input, in ms.
+///
+/// `GetLastInputInfo` is the screensaver clock: it covers the keyboard as well as
+/// the mouse, so typing counts even though the pet itself only ever sees the
+/// cursor. It shares a clock with `GetTickCount64`, so the subtraction is exact and
+/// both wrap together.
+fn system_idle_ms() -> u64 {
+    let mut info = LASTINPUTINFO {
+        cbSize: std::mem::size_of::<LASTINPUTINFO>() as u32,
+        dwTime: 0,
+    };
+    if unsafe { GetLastInputInfo(&mut info) } == 0 {
+        // No input information: stay conservatively awake rather than put the pet
+        // to sleep on a guess.
+        return 0;
+    }
+    let now = unsafe { GetTickCount64() } as u32;
+    u64::from(now.wrapping_sub(info.dwTime))
+}
+
+/// Whether the pet should lie down, given the session's idle time.
+///
+/// Pure, so the decision is unit-tested instead of needing a real desktop.
+/// `in_window` guards a pointer parked on the pet: the session reads as idle, but
+/// the pet must stay awake, or it would sleep, wake itself with a yawn, and repeat.
+fn should_sleep(idle_ms: u64, in_window: bool, emote_active: bool) -> bool {
+    !in_window && !emote_active && idle_ms >= SLEEP_AFTER_MS
+}
 
 /// Tick of the previous click, and reactions asked for by the window procedure.
 /// The engine lives on the pet thread, so the procedure only raises a flag.
@@ -382,7 +413,6 @@ fn run(
         let mut shown = true;
         let mut saved_pos = (x, y);
         let mut sleeping = false;
-        let mut last_interaction = start.elapsed().as_millis() as u64;
 
         loop {
             let mut msg: MSG = std::mem::zeroed();
@@ -472,19 +502,15 @@ fn run(
             }
 
             // Reactions. A double-click winks, a drag that put the pet down gets a
-            // startled look, and a long quiet spell sends it to sleep — all on
-            // states the engine already has.
+            // startled look, and a spell with no input anywhere sends it to sleep —
+            // all on states the engine already has.
             let in_window = pos.x >= rect.left
                 && pos.x < rect.right
                 && pos.y >= rect.top
                 && pos.y < rect.bottom;
-            if in_window {
-                last_interaction = now_ms;
-            }
 
             if WINK_REQUESTED.swap(false, Ordering::SeqCst) {
                 sleeping = false;
-                last_interaction = now_ms;
                 engine.set_state(StateId::Wink, now);
                 let duration = catalogue().state_meta(StateId::Wink).duration.max(1.6);
                 emote_ends_at = now + duration;
@@ -492,7 +518,6 @@ fn run(
             }
             if WIDE_REQUESTED.swap(false, Ordering::SeqCst) {
                 sleeping = false;
-                last_interaction = now_ms;
                 engine.set_state(StateId::Wide, now);
                 let duration = catalogue().state_meta(StateId::Wide).duration.max(1.6);
                 emote_ends_at = now + duration;
@@ -511,9 +536,7 @@ fn run(
                     emote_ends_at = now + duration;
                     next_emote_at = emote_ends_at + 7.0 + rand01() * 14.0;
                 }
-            } else if emote_ends_at == 0.0
-                && now_ms.saturating_sub(last_interaction) >= SLEEP_AFTER_MS
-            {
+            } else if should_sleep(system_idle_ms(), in_window, emote_ends_at > 0.0) {
                 engine.set_state(StateId::Sleep, now);
                 sleeping = true;
             }
@@ -622,5 +645,29 @@ fn run(
         DeleteObject(hbitmap as HGDIOBJ);
         DeleteDC(memdc);
         DestroyWindow(hwnd);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{should_sleep, SLEEP_AFTER_MS};
+
+    #[test]
+    fn sleeps_only_after_the_whole_session_goes_quiet() {
+        // Working anywhere on the PC keeps it awake, even with the cursor nowhere
+        // near the pet.
+        assert!(!should_sleep(SLEEP_AFTER_MS - 1, false, false));
+        // Two quiet minutes with no input anywhere: it lies down.
+        assert!(should_sleep(SLEEP_AFTER_MS, false, false));
+        assert!(should_sleep(SLEEP_AFTER_MS * 10, false, false));
+    }
+
+    #[test]
+    fn stays_awake_under_a_parked_pointer_or_a_running_emote() {
+        // A pointer parked on the pet reads as an idle session, but the pet must
+        // not sleep there — it would wake itself with a yawn and repeat.
+        assert!(!should_sleep(SLEEP_AFTER_MS * 10, true, false));
+        // An emote in flight is not a moment to lie down.
+        assert!(!should_sleep(SLEEP_AFTER_MS * 10, false, true));
     }
 }
