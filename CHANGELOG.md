@@ -7,6 +7,8 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.5.5] — 2026-11-19
+
 ### Added
 
 - **The sleep delay is yours to set.** Settings → **Sleep after**: 5, 15, 30 or 60
