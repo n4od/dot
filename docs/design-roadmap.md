@@ -41,9 +41,9 @@ a state that already exists in response to input.
 - [x] A startled look (`Wide`) when a drag puts the pet down. The window
       procedure compares the window rect across the OS move loop, so a stray click
       that did not move the pet stays a click.
-- [x] Sleep (`Sleep`) after `SLEEP_AFTER_MS` (2 min) with no cursor in the pet's
-      rect; the pose breathes while held, and the cursor entering the rect or a
-      click wakes it with a `Yawn`.
+- [x] Sleep (`Sleep`) after `Config.sleepMinutes` of no keyboard or mouse input
+      anywhere (default 15, `0` = never); the pose breathes while held, and the
+      cursor entering the pet's rect or a click wakes it with a `Yawn`.
 - [ ] A "peek" when the cursor approaches, a shy recoil when it is close.
 - [x] A yawn on waking (`Yawn`). A new state rather than a reused one, so it lives
       in both engines and the golden parity suite covers it — the biggest thing the

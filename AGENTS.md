@@ -103,8 +103,9 @@ cmd /c "pnpm icons"      # regenerate src-tauri/icons from tools/make-icons.mjs
   `WIDE_REQUESTED` from the window procedure (compare the rect across
   `WM_NCLBUTTONDOWN`) for a startled look — a state the engine already had, so it
   adds no geometry and touches neither painter nor parity. When the *whole session*
-  has had no keyboard or mouse input for `SLEEP_AFTER_MS` (`GetLastInputInfo`, the
-  screensaver clock, so typing counts) it plays `Sleep` and holds it, and the cursor
+  has had no keyboard or mouse input for `Config.sleepMinutes` (default 15 minutes,
+  `0` = never; `GetLastInputInfo`, the screensaver clock, so typing counts) it plays
+  `Sleep` and holds it, and the cursor
   entering its rect or a click wakes it with a `Yawn` — the widest thing the mouth
   does, and the one state this fork *adds* to the engine (so it lives in both twins
   and the golden suite covers it). A pointer parked on the pet keeps it awake, so an

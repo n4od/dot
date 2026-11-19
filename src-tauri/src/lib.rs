@@ -29,7 +29,7 @@ const CONFIG_FILE: &str = "config.json";
  * degrades to a sensible shape instead of refusing to start.
  */
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(default)]
+#[serde(default, rename_all = "camelCase")]
 struct Config {
     shape: String,
     color: String,
@@ -42,6 +42,10 @@ struct Config {
     /// Whether the pet may wear the machine's mood (busy, frazzled, drowsy) in
     /// place of the chosen expression. Defaults to on, for the same reason.
     mood: bool,
+    /// Idle minutes before the pet lies down; `0` means never. Defaults to 15 —
+    /// long enough that reading or thinking does not send it to sleep, and a
+    /// missing key keeps that number rather than serde's zero.
+    sleep_minutes: u32,
 }
 
 impl Default for Config {
@@ -53,6 +57,7 @@ impl Default for Config {
             style: "plat".into(),
             mouth: true,
             mood: true,
+            sleep_minutes: 15,
         }
     }
 }
@@ -131,6 +136,7 @@ fn set_config(app: AppHandle, config: Config) -> Result<Config, String> {
             &config.style,
             config.mouth,
             config.mood,
+            config.sleep_minutes,
         ));
     }
 
@@ -327,6 +333,7 @@ pub fn run() {
                     &config.style,
                     config.mouth,
                     config.mood,
+                    config.sleep_minutes,
                 ),
                 pet_actions(&handle),
                 x,
@@ -416,6 +423,22 @@ mod tests {
     fn the_mood_can_be_switched_off() {
         let config: Config = serde_json::from_str(r#"{"mood":false}"#).unwrap();
         assert!(!config.mood);
+    }
+
+    /// The delay defaults to a quarter of an hour. A file written before the field
+    /// existed must get that, not serde's zero — which would read as "never".
+    #[test]
+    fn a_file_from_before_sleep_minutes_existed_gets_fifteen() {
+        let config: Config = serde_json::from_str(r#"{"shape":"galet","mood":false}"#).unwrap();
+        assert_eq!(config.sleep_minutes, 15);
+    }
+
+    #[test]
+    fn the_sleep_delay_can_be_set_and_zero_means_never() {
+        let config: Config = serde_json::from_str(r#"{"sleepMinutes":0}"#).unwrap();
+        assert_eq!(config.sleep_minutes, 0);
+        let config: Config = serde_json::from_str(r#"{"sleepMinutes":30}"#).unwrap();
+        assert_eq!(config.sleep_minutes, 30);
     }
 
     /// Same trap one layer up: an older settings window sends a preview request

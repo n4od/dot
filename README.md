@@ -105,12 +105,14 @@ The choice lives in one small JSON file:
   "expression": "somnolent",
   "style": "argile",
   "mouth": true,
-  "mood": true
+  "mood": true,
+  "sleepMinutes": 15
 }
 ```
 
 at `%APPDATA%\dev.dotscode.dot\config.json`. Delete it to go back to defaults
-(`cercle` / `encre` / `neutre` / `plat`, with the mouth and the machine mood on).
+(`cercle` / `encre` / `neutre` / `plat`, with the mouth and the machine mood on and a
+fifteen-minute sleep delay).
 
 **Rust owns that file, not the frontend.** The native pet thread reads it at
 startup, before any webview exists, and `set_config` hands later changes to that

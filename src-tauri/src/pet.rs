@@ -57,8 +57,17 @@ const BUSY_MS: u64 = 15;
 const HTCAPTION: usize = 2;
 /// Two clicks within this window count as a double-click.
 const DOUBLE_CLICK_MS: u64 = 320;
-/// Idle time before the pet lies down to sleep.
-const SLEEP_AFTER_MS: u64 = 120_000;
+/// Idle minutes from the config as a duration; `0` means never lie down.
+///
+/// The default lives in `Config::default` (`lib.rs`), which is what a config
+/// written before the field existed falls back to.
+fn sleep_after_ms(minutes: u32) -> Option<u64> {
+    if minutes == 0 {
+        None
+    } else {
+        Some(u64::from(minutes) * 60_000)
+    }
+}
 
 /// How long the whole session has gone without keyboard or mouse input, in ms.
 ///
@@ -85,8 +94,8 @@ fn system_idle_ms() -> u64 {
 /// Pure, so the decision is unit-tested instead of needing a real desktop.
 /// `in_window` guards a pointer parked on the pet: the session reads as idle, but
 /// the pet must stay awake, or it would sleep, wake itself with a yawn, and repeat.
-fn should_sleep(idle_ms: u64, in_window: bool, emote_active: bool) -> bool {
-    !in_window && !emote_active && idle_ms >= SLEEP_AFTER_MS
+fn should_sleep(idle_ms: u64, after: Option<u64>, in_window: bool, emote_active: bool) -> bool {
+    !in_window && !emote_active && after.is_some_and(|ms| idle_ms >= ms)
 }
 
 /* ------------------------------------------------------------------- mood */
@@ -338,6 +347,8 @@ pub struct PetConfig {
     /// Whether the pet may wear the machine's mood instead of the expression you
     /// chose, while the box is busy or the battery is low.
     pub mood: bool,
+    /// Idle minutes before it lies down; `0` means never.
+    pub sleep_minutes: u32,
 }
 
 impl PetConfig {
@@ -348,6 +359,7 @@ impl PetConfig {
         style: &str,
         mouth: bool,
         mood: bool,
+        sleep_minutes: u32,
     ) -> Self {
         let hex = catalogue()
             .colors
@@ -362,6 +374,7 @@ impl PetConfig {
             style: style.to_string(),
             mouth,
             mood,
+            sleep_minutes,
         }
     }
 }
@@ -609,6 +622,7 @@ fn run(
             style: "plat".into(),
             mouth: true,
             mood: true,
+            sleep_minutes: 15,
         });
 
         let mut engine =
@@ -658,6 +672,7 @@ fn run(
         let mut power = (false, 100u8);
         let mut mood = Mood::Calm;
         let mut mood_on = first.mood;
+        let mut sleep_minutes = first.sleep_minutes;
         let mut user_expr = first.expression;
         let mut engine_expr = first.expression;
 
@@ -741,6 +756,13 @@ fn run(
                     // and this is only what the config is asking for.
                     user_expr = cfg.expression;
                     mood_on = cfg.mood;
+                    sleep_minutes = cfg.sleep_minutes;
+                    // "Never" should mean awake, not awake eventually: a pet that
+                    // was already asleep gets up as soon as the delay is turned off.
+                    if sleep_minutes == 0 && sleeping {
+                        sleeping = false;
+                        engine.set_state(StateId::Idle, now);
+                    }
                 }
             }
 
@@ -822,7 +844,12 @@ fn run(
                     emote_ends_at = now + duration;
                     next_emote_at = emote_ends_at + 7.0 + rand01() * 14.0;
                 }
-            } else if should_sleep(system_idle_ms(), in_window, emote_ends_at > 0.0) {
+            } else if should_sleep(
+                system_idle_ms(),
+                sleep_after_ms(sleep_minutes),
+                in_window,
+                emote_ends_at > 0.0,
+            ) {
                 engine.set_state(StateId::Sleep, now);
                 sleeping = true;
             }
@@ -937,26 +964,37 @@ fn run(
 #[cfg(test)]
 mod tests {
     use super::{
-        busy_fraction, mood_expression, mood_for, should_sleep, ExprId, Mood, SLEEP_AFTER_MS,
+        busy_fraction, mood_expression, mood_for, should_sleep, sleep_after_ms, ExprId, Mood,
     };
 
     #[test]
+    fn sleep_after_reads_minutes_and_zero_means_never() {
+        assert_eq!(sleep_after_ms(5), Some(5 * 60_000));
+        assert_eq!(sleep_after_ms(15), Some(15 * 60_000));
+        assert_eq!(sleep_after_ms(0), None);
+        // "Never" means never, however long the machine has been quiet.
+        assert!(!should_sleep(u64::MAX, None, false, false));
+    }
+
+    #[test]
     fn sleeps_only_after_the_whole_session_goes_quiet() {
+        let after = sleep_after_ms(15);
         // Working anywhere on the PC keeps it awake, even with the cursor nowhere
         // near the pet.
-        assert!(!should_sleep(SLEEP_AFTER_MS - 1, false, false));
-        // Two quiet minutes with no input anywhere: it lies down.
-        assert!(should_sleep(SLEEP_AFTER_MS, false, false));
-        assert!(should_sleep(SLEEP_AFTER_MS * 10, false, false));
+        assert!(!should_sleep(15 * 60_000 - 1, after, false, false));
+        // A quarter of an hour with no input anywhere: it lies down.
+        assert!(should_sleep(15 * 60_000, after, false, false));
+        assert!(should_sleep(15 * 60_000 * 10, after, false, false));
     }
 
     #[test]
     fn stays_awake_under_a_parked_pointer_or_a_running_emote() {
+        let after = sleep_after_ms(15);
         // A pointer parked on the pet reads as an idle session, but the pet must
         // not sleep there — it would wake itself with a yawn and repeat.
-        assert!(!should_sleep(SLEEP_AFTER_MS * 10, true, false));
+        assert!(!should_sleep(15 * 60_000 * 10, after, true, false));
         // An emote in flight is not a moment to lie down.
-        assert!(!should_sleep(SLEEP_AFTER_MS * 10, false, true));
+        assert!(!should_sleep(15 * 60_000 * 10, after, false, true));
     }
 
     #[test]

@@ -7,6 +7,13 @@ Versioning: [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The sleep delay is yours to set.** Settings → **Sleep after**: 5, 15, 30 or 60
+  minutes, or **Never**. The default is 15 (it was a fixed two), and the clock is
+  still "no keyboard or mouse input anywhere", so working keeps it awake. Turning it
+  to **Never** brings a pet that was already asleep straight back.
+
 ## [0.5.4] — 2026-11-16
 
 ### Added

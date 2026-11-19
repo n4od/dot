@@ -25,6 +25,7 @@ interface Config {
   style: string
   mouth: boolean
   mood: boolean
+  sleepMinutes: number
 }
 
 const config = ref<Config>({
@@ -33,7 +34,8 @@ const config = ref<Config>({
   expression: DEFAULT_EXPRESSION,
   style: DEFAULT_STYLE,
   mouth: true,
-  mood: true
+  mood: true,
+  sleepMinutes: 15
 })
 const error = ref('')
 const saved = ref(false)
@@ -176,6 +178,23 @@ function setMood(on: boolean) {
   if (config.value.mood === on) return
   config.value = { ...config.value, mood: on }
   schedule()
+}
+
+/**
+ * The sleep delay, in minutes; `0` means "never". The pills are the whole range on
+ * purpose — a text field would be the only one on the panel, and its validation
+ * would buy nothing.
+ */
+const SLEEP_CHOICES = [5, 15, 30, 60, 0]
+
+function setSleep(minutes: number) {
+  if (config.value.sleepMinutes === minutes) return
+  config.value = { ...config.value, sleepMinutes: minutes }
+  schedule()
+}
+
+function sleepLabel(minutes: number) {
+  return minutes === 0 ? 'Never' : `${minutes} min`
 }
 
 /*
@@ -509,6 +528,30 @@ function straightAhead(frame: BotFrame): BotFrame {
           <p class="hint">
             Wears what the PC is doing — attentive when it is busy, frazzled when it
             is pinned, drowsy on a low battery — instead of the expression above.
+          </p>
+        </section>
+
+        <section class="row">
+          <div class="rowhead">
+            <h2>Sleep after</h2>
+            <span class="value">{{ sleepLabel(config.sleepMinutes) }}</span>
+          </div>
+          <div class="pills" role="group" aria-label="Sleep after">
+            <button
+              v-for="minutes in SLEEP_CHOICES"
+              :key="minutes"
+              type="button"
+              class="stylebtn"
+              :class="{ on: config.sleepMinutes === minutes }"
+              :aria-pressed="config.sleepMinutes === minutes"
+              @click="setSleep(minutes)"
+            >
+              {{ sleepLabel(minutes) }}
+            </button>
+          </div>
+          <p class="hint">
+            How long the whole PC must be quiet before it lies down. Any keyboard or
+            mouse input anywhere resets the clock; it wakes when you move onto it.
           </p>
         </section>
 
